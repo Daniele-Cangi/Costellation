@@ -1,0 +1,211 @@
+# Roadmap
+
+Questo documento tiene insieme il lavoro fatto e le prossime mosse.
+
+La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, minimale ma avanzato**.
+
+## Fatto
+
+### Fondazione Android
+
+- App Kotlin/Jetpack Compose.
+- Navigazione Home, Ritual, Ceremony, Resonance, Reveal, Nearby, History, Chorus.
+- Storage locale dei sigilli giornalieri.
+- Archivio dei sigilli.
+- Reminder giornaliero.
+- Build debug funzionante e installazione via ADB.
+
+### Orb
+
+- Orb procedurale basato sul sigillo del giorno.
+- Movimento continuo senza reset visibile del ritmo.
+- Colore e tono legati ai parametri emotivi.
+- Reazione al movimento del telefono.
+- Pulsazione lenta e piu solenne.
+- Stati rituali:
+  - Dormant
+  - Listening
+  - Contemplative
+  - NearChorus
+  - Sealed
+  - Resonating
+- Tap leggero con onda interna.
+- Pressione lunga con apertura del nucleo.
+- Attrazione della costellazione interna verso il dito.
+- Movimento del dito filtrato con inerzia.
+- Nodi con resistenza procedurale: non tutti vengono catturati.
+- Tracce visive dagli echo giornalieri.
+
+### Nearby Field
+
+- Permesso posizione approssimativa.
+- Celle anonime, nessuna coordinata raw.
+- Ascolto cella corrente + celle adiacenti.
+- Presenze remote anonime come orb.
+- Echo anonimo verso un orb selezionato.
+- Memoria locale: presenze, echo inviati, echo ricevuti.
+- Reazione visiva quando il campo cambia.
+- Attrazione magnetica dei piccoli orb verso il dito.
+
+### Firebase
+
+- Firebase project `constellation-pulse`.
+- Android app `app.constellationpulse`.
+- `google-services.json` collegato.
+- Anonymous Auth.
+- Firestore in `eur3`.
+- Regole Firestore deployate.
+- Presenze ed echo live nel Nearby Field.
+
+### Chorus
+
+- Nuova schermata Chorus.
+- Ingresso dalla Home con long press sull'orb.
+- Ingresso anche tramite `Join the Chorus`.
+- Fasi rituali:
+  - Pre-Chorus
+  - Entry
+  - Convergence
+  - The Minute
+  - Afterglow
+  - Sealed
+- Campo procedurale attorno alla sfera.
+- Presenze anonime come luci, non avatar.
+- Minuto centrale legato alle 20:00 locali.
+- Afterglow dopo il minuto.
+- Copy minimale:
+  - The Chorus opens soon.
+  - Touch the field.
+  - The field is no longer empty.
+  - For one minute, you are not alone.
+  - You were part of today's Chorus.
+  - Today's Chorus is sealed.
+
+## Prossime Mosse Migliori
+
+### 1. Chorus Live Backend
+
+Il Chorus oggi e una drammaturgia locale/time-aware.
+Il prossimo passo e renderlo un evento live reale.
+
+Da fare:
+
+- scrivere presenza anonima quando l'utente entra nel Chorus;
+- aggiornare heartbeat durante il minuto;
+- ascoltare presenze globali e locali;
+- derivare `globalPresenceCount`;
+- derivare `coherence`;
+- derivare `turbulence`;
+- derivare `localDensity`;
+- guidare `ChorusEclipseField` con dati reali.
+
+Obiettivo: l'utente deve percepire che non sta guardando un'animazione, ma un evento generato da presenze vere.
+
+### 2. Afterglow Come Reliquia
+
+Alla fine del Chorus, il campo deve lasciare una traccia salvata.
+
+Da fare:
+
+- generare un `afterglowSeed` giornaliero;
+- salvare una reliquia locale;
+- mostrare l'afterglow nell'Archive;
+- distinguere sigillo personale e Chorus relic;
+- evitare numeri tecnici.
+
+Messaggio chiave:
+
+```text
+You were part of today's Chorus.
+```
+
+### 3. Echo Come Trasferimento Di Luce
+
+Echo oggi funziona, ma deve diventare piu fisico.
+
+Da fare:
+
+- animare una traiettoria luminosa dal tuo orb a quello selezionato;
+- far cambiare temporaneamente il colore dell'orb ricevente;
+- lasciare cicatrice diversa per echo inviato e ricevuto;
+- aggiungere haptic morbido al rilascio.
+
+### 4. Reazione Degli Altri Sulla Home
+
+La Home deve sentire il mondo anche fuori dal Nearby Field.
+
+Da fare:
+
+- ascoltare un segnale leggero di presenza live;
+- deformare appena l'orb quando il campo non e vuoto;
+- sfumare il colore verso il mood del campo;
+- usare linee di tensione molto sottili.
+
+### 5. Shake Poetico
+
+Il movimento del telefono oggi influenza l'orb.
+Manca un gesto di disturbo e ricomposizione.
+
+Da fare:
+
+- rilevare shake leggero;
+- creare disturbo visuale breve;
+- ricomporre lentamente la costellazione;
+- evitare effetto giocattolo.
+
+### 6. Audio Opzionale
+
+Da fare solo quando l'esperienza visuale e stabile.
+
+Principi:
+
+- opzionale;
+- molto basso;
+- niente musica invadente;
+- micro-tono o drone ambient;
+- silenzio come default rispettabile.
+
+### 7. Qualita E Release
+
+Da fare:
+
+- test unitari per modello dati e repository;
+- test mirati per generazione sigilli;
+- controlli su permessi e fallback offline;
+- configurazione release APK/AAB;
+- icona finale;
+- privacy text minimale;
+- test finale con due telefoni.
+
+## Test Finale Con Due Telefoni
+
+Da lasciare alla fine, quando:
+
+- Nearby Field e stabile;
+- Echo visuale e completo;
+- Chorus live usa Firebase;
+- afterglow viene salvato;
+- fallback offline e chiaro.
+
+Scenario:
+
+1. Installare la stessa build su due telefoni.
+2. Sigillare il giorno su entrambi.
+3. Aprire Nearby Field nella stessa area.
+4. Verificare presenza reciproca anonima.
+5. Inviare echo da telefono A a telefono B.
+6. Verificare cicatrice/trace su entrambi.
+7. Entrare nel Chorus con entrambi.
+8. Verificare convergenza live e afterglow.
+
+## Principi Da Non Tradire
+
+- Niente profili.
+- Niente feed.
+- Niente chat.
+- Niente classifica.
+- Niente performance.
+- Niente spiegazioni eccessive in app.
+- Il gesto deve pesare piu dell'interfaccia.
+- Il silenzio e parte del prodotto.
+- Il Chorus deve sembrare raro, inevitabile, condiviso.

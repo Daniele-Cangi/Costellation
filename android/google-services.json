@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "276137690043",
+    "project_id": "constellation-pulse",
+    "storage_bucket": "constellation-pulse.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:276137690043:android:c365307a3a50211decfa9e",
+        "android_client_info": {
+          "package_name": "app.constellationpulse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBs5JK-ToTS__1p9pA5fru4wM_Cic3Z4Vk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

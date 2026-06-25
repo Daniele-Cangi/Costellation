@@ -1,0 +1,24 @@
+
+---
+
+## 🪶 `manifesto.md`
+```markdown
+# Constellation Pulse — Manifesto
+
+Una volta al giorno, il mondo respira.
+
+Ogni persona è una particella di luce.  
+Ogni sigillo è un atto di presenza.  
+Nessuna competizione, nessuna esposizione, solo co-esistenza.
+
+Constellation Pulse non misura — *sente*.  
+È arte computazionale, scienza del quotidiano, memoria emotiva collettiva.
+
+Il codice è la tela, la rete è il pennello,  
+l’emozione è il colore.
+
+> Non ci sono follower.  
+> Ci sono frequenze che si incontrano.
+
+Un giorno, guardando la sfera globale,  
+sapremo com’era **il battito del mondo** in ogni istante del nostro tempo.

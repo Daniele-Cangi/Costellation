@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validSignal(value) {
+      return value is int && value >= 0 && value <= 100;
+    }
+
+    match /dailyFields/{day}/cells/{cellId}/orbs/{orbId} {
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && request.resource.data.orbId == orbId
+        && request.resource.data.day == day
+        && validSignal(request.resource.data.valence)
+        && validSignal(request.resource.data.arousal)
+        && validSignal(request.resource.data.energy)
+        && validSignal(request.resource.data.focus)
+        && validSignal(request.resource.data.social)
+        && request.resource.data.createdAtMillis is int;
+    }
+
+    match /dailyFields/{day}/cells/{cellId}/echoes/{echoId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.targetOrbId is string
+        && request.resource.data.echoSeed is string
+        && request.resource.data.createdAtMillis is int;
+    }
+  }
+}

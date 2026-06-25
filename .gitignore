@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Local machine configuration
+local.properties
+
+# Generated artifacts
+*.apk
+*.aab
+*.ap_
+*.log
+__pycache__/
+*.pyc
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Local pulse script output
+/data/
