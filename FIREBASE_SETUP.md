@@ -123,6 +123,7 @@ Regole da mantenere:
   - turbulence;
   - coarse cell ID;
   - client seed procedurale.
+- Afterglow relic locale generata dagli aggregati live disponibili.
 
 ## Backend Da Fare Per Il Chorus
 
@@ -169,8 +170,8 @@ Devono diventare comportamento della sfera.
 1. Raffinare heartbeat: solo finestre temporali realmente rilevanti.
 2. Aggiungere `minutes/{minuteKey}` se serve una separazione piu pulita del minuto centrale.
 3. Valutare Cloud Function per aggregati anonimi server-side.
-4. Salvare afterglow giornaliero come reliquia visuale.
-5. Collegare afterglow all'Archive.
+4. Spostare afterglow relic da solo-locale a reliquia condivisa/derivata dal backend.
+5. Rifinire rendering della reliquia nell'Archive.
 6. Testare con due telefoni solo alla fine del ciclo.
 
 ## Troubleshooting

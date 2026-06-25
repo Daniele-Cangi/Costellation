@@ -59,6 +59,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Presenze live iniziali nel Chorus.
 - Heartbeat anonimo durante la partecipazione.
 - Aggregati client-side per conteggio, densita locale, coerenza e turbolenza.
+- Afterglow relic locale salvata dopo la partecipazione al Chorus.
 
 ### Chorus
 
@@ -77,6 +78,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Campo guidato da presenze live quando Firebase e disponibile.
 - Minuto centrale legato alle 20:00 locali.
 - Afterglow dopo il minuto.
+- Reliquia visuale nell'Archive.
 - Copy minimale:
   - The Chorus opens soon.
   - Touch the field.
@@ -103,16 +105,17 @@ Da fare:
 
 Obiettivo: l'utente deve percepire che non sta guardando un'animazione, ma un evento generato da presenze vere.
 
-### 2. Afterglow Come Reliquia
+### 2. Raffinare Afterglow Come Reliquia
 
-Alla fine del Chorus, il campo deve lasciare una traccia salvata.
+Alla fine del Chorus, il campo lascia gia una prima traccia locale salvata.
+Ora va resa piu forte, piu condivisa e piu riconoscibile.
 
 Da fare:
 
-- generare un `afterglowSeed` giornaliero;
-- salvare una reliquia locale;
-- mostrare l'afterglow nell'Archive;
-- distinguere sigillo personale e Chorus relic;
+- derivare una reliquia condivisa dal backend, non solo dal client;
+- migliorare `afterglowSeed` con presenza globale e coerenza reale;
+- rendere l'Archive piu reliquiario e meno lista;
+- distinguere ancora meglio sigillo personale e Chorus relic;
 - evitare numeri tecnici.
 
 Messaggio chiave:

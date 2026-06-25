@@ -95,6 +95,8 @@ import app.constellationpulse.backend.RemoteChorusState
 import app.constellationpulse.backend.RemoteFieldOrb
 import app.constellationpulse.data.ChorusMemory
 import app.constellationpulse.data.ChorusMemoryRepository
+import app.constellationpulse.data.ChorusRelic
+import app.constellationpulse.data.ChorusRelicRepository
 import app.constellationpulse.data.PulseRepository
 import app.constellationpulse.data.PulseSeal
 import app.constellationpulse.reminder.PulseReminderScheduler
@@ -120,15 +122,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val repository = remember { PulseRepository(applicationContext) }
+            val relicRepository = remember { ChorusRelicRepository(applicationContext) }
             var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Home) }
             var todaySeal by remember { mutableStateOf<PulseSeal?>(null) }
             var history by remember { mutableStateOf(emptyList<PulseSeal>()) }
+            var chorusRelics by remember { mutableStateOf(emptyList<ChorusRelic>()) }
             var visiblePulse by remember { mutableStateOf<PulseSeal?>(null) }
             var pendingPulse by remember { mutableStateOf<PulseSeal?>(null) }
 
             fun reloadArchive() {
                 todaySeal = repository.loadToday()
                 history = repository.loadAll()
+                chorusRelics = relicRepository.loadAll()
             }
 
             LaunchedEffect(repository) {
@@ -142,6 +147,7 @@ class MainActivity : ComponentActivity() {
                     currentScreen = currentScreen,
                     todaySeal = todaySeal,
                     history = history,
+                    chorusRelics = chorusRelics,
                     visiblePulse = visiblePulse,
                     onNavigateHome = {
                         visiblePulse = null
@@ -165,6 +171,10 @@ class MainActivity : ComponentActivity() {
                     },
                     onChorus = {
                         currentScreen = AppScreen.Chorus
+                    },
+                    onChorusRelic = { relic ->
+                        relicRepository.save(relic)
+                        reloadArchive()
                     },
                     onNearby = {
                         currentScreen = AppScreen.Nearby
@@ -327,12 +337,14 @@ private fun ConstellationPulseApp(
     currentScreen: AppScreen,
     todaySeal: PulseSeal?,
     history: List<PulseSeal>,
+    chorusRelics: List<ChorusRelic>,
     visiblePulse: PulseSeal?,
     onNavigateHome: () -> Unit,
     onSealClick: () -> Unit,
     onRevealToday: () -> Unit,
     onHistory: () -> Unit,
     onChorus: () -> Unit,
+    onChorusRelic: (ChorusRelic) -> Unit,
     onNearby: () -> Unit,
     onOpenPulse: (PulseSeal) -> Unit,
     onSeal: (PulseSeal) -> Unit,
@@ -357,7 +369,8 @@ private fun ConstellationPulseApp(
 
             AppScreen.Chorus -> ChorusScreen(
                 todaySeal = todaySeal,
-                onBack = onNavigateHome
+                onBack = onNavigateHome,
+                onRelicSealed = onChorusRelic
             )
 
             AppScreen.Seal -> SealScreen(
@@ -390,6 +403,7 @@ private fun ConstellationPulseApp(
 
             AppScreen.History -> HistoryScreen(
                 history = history,
+                chorusRelics = chorusRelics,
                 onBack = onNavigateHome,
                 onOpenPulse = onOpenPulse
             )
@@ -506,7 +520,8 @@ private fun HomeScreen(
 @Composable
 private fun ChorusScreen(
     todaySeal: PulseSeal?,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRelicSealed: (ChorusRelic) -> Unit
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -524,6 +539,7 @@ private fun ChorusScreen(
     var hasEntered by rememberSaveable { mutableStateOf(false) }
     var isHoldingField by remember { mutableStateOf(false) }
     var chorusLiveState by remember { mutableStateOf(RemoteChorusState()) }
+    var savedRelicDay by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -630,6 +646,29 @@ private fun ChorusScreen(
         if (stage == ChorusStage.Minute || stage == ChorusStage.Afterglow) {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
+    }
+
+    LaunchedEffect(stage, hasEntered, chorusLiveState, day, clientSeed) {
+        val canSealRelic = hasEntered && (stage == ChorusStage.Afterglow || stage == ChorusStage.Sealed)
+        if (!canSealRelic || savedRelicDay == day) {
+            return@LaunchedEffect
+        }
+
+        val fallbackPresence = if (hasEntered) 1 else 0
+        onRelicSealed(
+            ChorusRelic(
+                day = day,
+                createdAtMillis = System.currentTimeMillis(),
+                afterglowSeed = chorusLiveState.afterglowSeed.takeIf { it != 0 }
+                    ?: (clientSeed xor day.hashCode()),
+                globalPresenceCount = chorusLiveState.globalPresenceCount.coerceAtLeast(fallbackPresence),
+                localFieldDensity = chorusLiveState.localFieldDensity,
+                synchronizationLevel = chorusLiveState.synchronizationLevel,
+                coherence = chorusLiveState.coherence,
+                turbulence = chorusLiveState.turbulence
+            )
+        )
+        savedRelicDay = day
     }
 
     PulseScaffold {
@@ -1865,6 +1904,7 @@ private fun ChorusMemoryStrip(memory: ChorusMemory) {
 @Composable
 private fun HistoryScreen(
     history: List<PulseSeal>,
+    chorusRelics: List<ChorusRelic>,
     onBack: () -> Unit,
     onOpenPulse: (PulseSeal) -> Unit
 ) {
@@ -1877,7 +1917,7 @@ private fun HistoryScreen(
         ) {
             TopBar(title = "Constellation", onBack = onBack)
 
-            if (history.isEmpty()) {
+            if (history.isEmpty() && chorusRelics.isEmpty()) {
                 EmptyState(
                     title = "No orbs yet.",
                     actionLabel = "Back",
@@ -1888,6 +1928,29 @@ private fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    if (chorusRelics.isNotEmpty()) {
+                        item(key = "chorus-relics-label") {
+                            Text(
+                                text = "Chorus relics",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        items(chorusRelics, key = { relic -> "relic-${relic.day}" }) { relic ->
+                            ChorusRelicRow(relic = relic)
+                        }
+                    }
+                    if (history.isNotEmpty()) {
+                        item(key = "daily-orbs-label") {
+                            Text(
+                                text = "Daily orbs",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
                     items(history, key = { it.dateKey }) { pulse ->
                         HistoryRow(
                             pulse = pulse,
@@ -2289,6 +2352,58 @@ private fun HistoryRow(
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun ChorusRelicRow(relic: ChorusRelic) {
+    val relicPulse = remember(relic.day, relic.afterglowSeed) {
+        relic.toPulseSeal()
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(panelShape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
+            .border(
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)),
+                panelShape
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        PulseOrb(
+            pulse = relicPulse,
+            modifier = Modifier.size(58.dp),
+            showConstellation = false,
+            echoTraceCount = relic.globalPresenceCount.coerceIn(1, 12),
+            ritualState = OrbRitualState.Contemplative
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = formatDateKey(relic.day),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "You were part of today's Chorus.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+        Text(
+            text = "RELIC",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp
         )
     }
 }
