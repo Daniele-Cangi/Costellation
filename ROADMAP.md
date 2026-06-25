@@ -177,6 +177,56 @@ Da fare:
 - privacy text minimale;
 - test finale con due telefoni.
 
+### 8. Apple / iOS
+
+Non e una fase da fare ora.
+Va pianificata dopo Chorus live, afterglow, stabilizzazione Android e primi test reali.
+
+Scelta tecnica confermata:
+
+```text
+Kotlin Multiplatform per il cuore condiviso
++ SwiftUI nativa per l'esperienza iOS
+```
+
+Perche questa scelta:
+
+- mantiene condivisa la logica importante;
+- evita di riscrivere due volte generazione sigilli, stati rituali, memoria e regole Chorus;
+- permette su iPhone un'interfaccia davvero Apple;
+- sfrutta bene CoreMotion, haptics iOS, notifiche locali e Firebase iOS;
+- evita una migrazione totale a Flutter/React Native, che rischierebbe di appiattire il feeling visuale dell'orb.
+
+Da condividere con Kotlin Multiplatform:
+
+- modelli dati;
+- generazione del sigillo;
+- stati rituali dell'orb;
+- logica Chorus;
+- calcolo afterglow;
+- regole di privacy e celle anonime;
+- repository astratti.
+
+Da costruire nativo iOS:
+
+- UI SwiftUI;
+- renderer orb con Canvas/Metal o SwiftUI Canvas;
+- CoreMotion per movimento e shake;
+- haptics iOS;
+- notifiche locali;
+- integrazione Firebase iOS;
+- storage locale;
+- permessi posizione approssimativa;
+- TestFlight.
+
+Prerequisiti:
+
+- Mac con Xcode;
+- Apple Developer account;
+- iPhone reale per test sensori/haptics;
+- definizione bundle ID iOS;
+- configurazione Firebase iOS nello stesso progetto.
+
 ## Test Finale Con Due Telefoni
 
 Da lasciare alla fine, quando:

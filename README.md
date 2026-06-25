@@ -151,4 +151,6 @@ Il prossimo lavoro importante e rendere il Chorus realmente live:
 - afterglow salvato come reliquia visiva del giorno;
 - test con due telefoni alla fine del ciclo.
 
+La versione Apple/iOS e prevista piu avanti. La scelta tecnica confermata e Kotlin Multiplatform per il cuore condiviso + SwiftUI nativa per l'esperienza iPhone.
+
 Vedi `ROADMAP.md` per la lista completa.
