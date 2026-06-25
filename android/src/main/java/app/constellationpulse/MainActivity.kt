@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import app.constellationpulse.backend.FirebaseFieldService
+import app.constellationpulse.backend.RemoteChorusState
 import app.constellationpulse.backend.RemoteFieldOrb
 import app.constellationpulse.data.ChorusMemory
 import app.constellationpulse.data.ChorusMemoryRepository
@@ -507,10 +508,22 @@ private fun ChorusScreen(
     todaySeal: PulseSeal?,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    val firebaseFieldService = remember {
+        FirebaseFieldService(context.applicationContext)
+    }
+    val day = remember { PulseSeal.todayKey() }
+    val localCellId = remember {
+        nearbyCellId(context, hasCoarseLocationPermission(context))
+    }
+    val clientSeed = remember(day, todaySeal?.createdAtMillis) {
+        pulseVisualSeed(todaySeal) xor day.hashCode() xor System.currentTimeMillis().toInt()
+    }
     var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var hasEntered by rememberSaveable { mutableStateOf(false) }
     var isHoldingField by remember { mutableStateOf(false) }
+    var chorusLiveState by remember { mutableStateOf(RemoteChorusState()) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -527,6 +540,23 @@ private fun ChorusScreen(
         }
     }
 
+    DisposableEffect(firebaseFieldService, day, localCellId) {
+        val registration = firebaseFieldService.listenChorusState(
+            day = day,
+            localCellId = localCellId,
+            onUpdate = { liveState ->
+                chorusLiveState = liveState
+            },
+            onError = {
+                chorusLiveState = RemoteChorusState()
+            }
+        )
+
+        onDispose {
+            registration?.remove()
+        }
+    }
+
     val timeStage = chorusTimeStage(nowMillis)
     val stage = when {
         timeStage == ChorusStage.Minute && hasEntered -> ChorusStage.Minute
@@ -536,6 +566,38 @@ private fun ChorusScreen(
         hasEntered -> ChorusStage.Convergence
         else -> ChorusStage.PreChorus
     }
+
+    LaunchedEffect(hasEntered, stage, isHoldingField, localCellId, clientSeed) {
+        if (!hasEntered || stage == ChorusStage.Sealed || !firebaseFieldService.isAvailable()) {
+            return@LaunchedEffect
+        }
+
+        while (true) {
+            val isCentralMinute = stage == ChorusStage.Minute
+            firebaseFieldService.publishChorusPresence(
+                day = day,
+                coarseCellId = localCellId,
+                touchStability = when {
+                    isHoldingField -> 1f
+                    isCentralMinute -> 0.64f
+                    else -> 0.42f
+                },
+                stillness = when {
+                    isHoldingField -> 0.92f
+                    isCentralMinute -> 0.74f
+                    else -> 0.58f
+                },
+                turbulence = when {
+                    isHoldingField -> 0.07f
+                    isCentralMinute -> 0.16f
+                    else -> 0.28f
+                },
+                clientSeed = clientSeed
+            )
+            delay(4_000)
+        }
+    }
+
     val millisSinceOpen = millisSinceTodayChorus(nowMillis)
     val minuteRemaining = (60 - (millisSinceOpen / 1_000).coerceIn(0, 60)).toInt()
     val countdown = formatCountdown(millisUntilChorus())
@@ -550,9 +612,17 @@ private fun ChorusScreen(
     val support = when (stage) {
         ChorusStage.PreChorus -> countdown
         ChorusStage.Entry -> "Hold the sphere to cross the threshold."
-        ChorusStage.Convergence -> "Others are entering the field."
+        ChorusStage.Convergence -> if (chorusLiveState.globalPresenceCount > 1) {
+            "Others are entering the field."
+        } else {
+            "Your signal is waiting for the field."
+        }
         ChorusStage.Minute -> "${minuteRemaining}s"
-        ChorusStage.Afterglow -> "The minute has left a trace."
+        ChorusStage.Afterglow -> if (chorusLiveState.globalPresenceCount > 0) {
+            "The minute has left a trace."
+        } else {
+            "The field is becoming a trace."
+        }
         ChorusStage.Sealed -> "Return tomorrow."
     }
 
@@ -596,6 +666,7 @@ private fun ChorusScreen(
                     stage = stage,
                     entered = hasEntered,
                     holding = isHoldingField,
+                    liveState = chorusLiveState,
                     onHoldingChange = { isHoldingField = it },
                     onEnter = {
                         hasEntered = true
@@ -633,6 +704,7 @@ private fun ChorusEclipseField(
     stage: ChorusStage,
     entered: Boolean,
     holding: Boolean,
+    liveState: RemoteChorusState,
     onHoldingChange: (Boolean) -> Unit,
     onEnter: () -> Unit,
     modifier: Modifier = Modifier
@@ -640,40 +712,52 @@ private fun ChorusEclipseField(
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val time = rememberOrbTimeSeconds(active = true)
-    val seed = remember(pulse?.dateKey, pulse?.createdAtMillis) {
-        pulseVisualSeed(pulse) xor PulseSeal.todayKey().hashCode()
+    val seed = remember(pulse?.dateKey, pulse?.createdAtMillis, liveState.afterglowSeed) {
+        pulseVisualSeed(pulse) xor PulseSeal.todayKey().hashCode() xor liveState.afterglowSeed
+    }
+    val livePresence = (liveState.globalPresenceCount / 32f).coerceIn(0f, 1f)
+    val liveCoherence = liveState.coherence.coerceIn(0f, 1f)
+    val liveTurbulence = liveState.turbulence.coerceIn(0f, 1f)
+    val liveNearness = liveState.localFieldDensity.coerceIn(0f, 1f)
+    val activePresences = liveState.activePresences
+    val baseStagePull = when (stage) {
+        ChorusStage.PreChorus -> 0.10f
+        ChorusStage.Entry -> if (holding) 0.38f else 0.20f
+        ChorusStage.Convergence -> 0.62f
+        ChorusStage.Minute -> 0.82f
+        ChorusStage.Afterglow -> 0.42f
+        ChorusStage.Sealed -> 0.22f
+    }
+    val baseCoherence = when (stage) {
+        ChorusStage.PreChorus -> 0.20f
+        ChorusStage.Entry -> if (entered) 0.42f else 0.26f
+        ChorusStage.Convergence -> 0.64f
+        ChorusStage.Minute -> if (holding) 0.92f else 0.76f
+        ChorusStage.Afterglow -> 0.70f
+        ChorusStage.Sealed -> 0.34f
     }
     val stagePull by animateFloatAsState(
-        targetValue = when (stage) {
-            ChorusStage.PreChorus -> 0.10f
-            ChorusStage.Entry -> if (holding) 0.38f else 0.20f
-            ChorusStage.Convergence -> 0.62f
-            ChorusStage.Minute -> 0.82f
-            ChorusStage.Afterglow -> 0.42f
-            ChorusStage.Sealed -> 0.22f
-        },
+        targetValue = (baseStagePull + liveNearness * 0.12f + livePresence * 0.08f).coerceIn(0f, 0.92f),
         animationSpec = tween(1_400, easing = FastOutSlowInEasing),
         label = "chorus-stage-pull"
     )
     val coherence by animateFloatAsState(
-        targetValue = when (stage) {
-            ChorusStage.PreChorus -> 0.20f
-            ChorusStage.Entry -> if (entered) 0.42f else 0.26f
-            ChorusStage.Convergence -> 0.64f
-            ChorusStage.Minute -> if (holding) 0.92f else 0.76f
-            ChorusStage.Afterglow -> 0.70f
-            ChorusStage.Sealed -> 0.34f
-        },
+        targetValue = (baseCoherence * 0.62f + liveCoherence * 0.38f).coerceIn(0.10f, 0.96f),
         animationSpec = tween(1_800, easing = FastOutSlowInEasing),
         label = "chorus-coherence"
     )
-    val presenceCount = when (stage) {
+    val fallbackPresenceCount = when (stage) {
         ChorusStage.PreChorus -> 7
         ChorusStage.Entry -> 10
         ChorusStage.Convergence -> 18
         ChorusStage.Minute -> 24
         ChorusStage.Afterglow -> 16
         ChorusStage.Sealed -> 9
+    }
+    val presenceCount = if (liveState.globalPresenceCount > 0) {
+        (liveState.globalPresenceCount + fallbackPresenceCount / 2).coerceIn(8, 42)
+    } else {
+        fallbackPresenceCount
     }
     val orbState = when (stage) {
         ChorusStage.PreChorus -> OrbRitualState.NearChorus
@@ -708,19 +792,26 @@ private fun ChorusEclipseField(
             )
 
             repeat(presenceCount) { index ->
-                val random = Random(seed + index * 9137)
+                val livePresenceSeed = activePresences.getOrNull(index % activePresences.size.coerceAtLeast(1))
+                val random = Random((livePresenceSeed?.clientSeed ?: seed) + index * 9137)
                 val direction = if (index % 2 == 0) 1f else -1f
                 val baseAngle = random.nextFloat() * 360f
                 val angle = (baseAngle + time * (4.5f + coherence * 8f) * direction) * PI.toFloat() / 180f
                 val outerOrbit = 0.46f + random.nextFloat() * 0.10f
                 val innerOrbit = 0.18f + random.nextFloat() * 0.12f
                 val orbit = outerOrbit + (innerOrbit - outerOrbit) * stagePull
-                val wobble = sin(time * 1.3f + index * 0.72f) * min * 0.010f * (1f - coherence)
+                val presenceStillness = livePresenceSeed?.stillness ?: coherence
+                val presenceTurbulence = livePresenceSeed?.turbulence ?: liveTurbulence
+                val wobble = sin(time * 1.3f + index * 0.72f) *
+                    min *
+                    0.010f *
+                    (1f - coherence + presenceTurbulence * 0.8f) *
+                    (1.12f - presenceStillness * 0.34f)
                 val point = Offset(
                     x = centerPoint.x + cos(angle) * min * orbit + cos(angle + PI.toFloat() / 2f) * wobble,
                     y = centerPoint.y + sin(angle) * min * orbit + sin(angle + PI.toFloat() / 2f) * wobble
                 )
-                val alpha = 0.08f + coherence * 0.18f + (index % 5) * 0.008f
+                val alpha = 0.08f + coherence * 0.18f + livePresence * 0.06f + (index % 5) * 0.008f
 
                 drawLine(
                     color = if (index % 3 == 0) {

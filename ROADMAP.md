@@ -56,6 +56,9 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Firestore in `eur3`.
 - Regole Firestore deployate.
 - Presenze ed echo live nel Nearby Field.
+- Presenze live iniziali nel Chorus.
+- Heartbeat anonimo durante la partecipazione.
+- Aggregati client-side per conteggio, densita locale, coerenza e turbolenza.
 
 ### Chorus
 
@@ -71,6 +74,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
   - Sealed
 - Campo procedurale attorno alla sfera.
 - Presenze anonime come luci, non avatar.
+- Campo guidato da presenze live quando Firebase e disponibile.
 - Minuto centrale legato alle 20:00 locali.
 - Afterglow dopo il minuto.
 - Copy minimale:
@@ -83,21 +87,19 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 
 ## Prossime Mosse Migliori
 
-### 1. Chorus Live Backend
+### 1. Raffinare Chorus Live
 
-Il Chorus oggi e una drammaturgia locale/time-aware.
-Il prossimo passo e renderlo un evento live reale.
+Il Chorus ha ora una prima presenza live reale.
+Il prossimo passo e renderla piu precisa, piu robusta e piu memorabile.
 
 Da fare:
 
-- scrivere presenza anonima quando l'utente entra nel Chorus;
-- aggiornare heartbeat durante il minuto;
-- ascoltare presenze globali e locali;
-- derivare `globalPresenceCount`;
-- derivare `coherence`;
-- derivare `turbulence`;
-- derivare `localDensity`;
-- guidare `ChorusEclipseField` con dati reali.
+- limitare e rifinire heartbeat sulle finestre temporali giuste;
+- valutare struttura `minutes/{minuteKey}` per il minuto centrale;
+- migliorare calcolo `coherence` e `synchronizationLevel`;
+- salvare un `afterglowSeed` condiviso;
+- valutare Cloud Function per aggregati server-side;
+- mostrare differenze tra campo globale e campo locale senza numeri tecnici.
 
 Obiettivo: l'utente deve percepire che non sta guardando un'animazione, ma un evento generato da presenze vere.
 

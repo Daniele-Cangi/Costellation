@@ -10,6 +10,10 @@ service cloud.firestore {
       return value is int && value >= 0 && value <= 100;
     }
 
+    function validUnit(value) {
+      return value is number && value >= 0 && value <= 1;
+    }
+
     match /dailyFields/{day}/cells/{cellId}/orbs/{orbId} {
       allow read: if signedIn();
 
@@ -31,6 +35,21 @@ service cloud.firestore {
         && request.resource.data.targetOrbId is string
         && request.resource.data.echoSeed is string
         && request.resource.data.createdAtMillis is int;
+    }
+
+    match /dailyChoruses/{day}/presences/{presenceId} {
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && request.resource.data.presenceId == presenceId
+        && request.resource.data.day == day
+        && request.resource.data.coarseCellId is string
+        && validUnit(request.resource.data.touchStability)
+        && validUnit(request.resource.data.stillness)
+        && validUnit(request.resource.data.turbulence)
+        && request.resource.data.clientSeed is int
+        && request.resource.data.joinedAtMillis is int
+        && request.resource.data.lastSeenAtMillis is int;
     }
   }
 }

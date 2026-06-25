@@ -35,6 +35,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Reminder giornaliero prima del Chorus.
 - Nearby Field anonimo basato su celle approssimate, senza coordinate precise.
 - Firebase Anonymous Auth + Firestore per presenze live ed echo.
+- Chorus live backend iniziale con presenze anonime, heartbeat e aggregati visuali.
 - Echo anonimi tra orb vicini.
 - Memoria giornaliera del coro: presenze, echo inviati, echo ricevuti.
 - Orb reattivo al movimento del telefono tramite sensori.
@@ -145,9 +146,8 @@ Regole di prodotto:
 
 Il prossimo lavoro importante e rendere il Chorus realmente live:
 
-- presenza globale per il minuto delle 20:00;
-- conteggio anonimo live;
-- coerenza e sincronizzazione derivate da presenze reali;
+- raffinare presenza globale nel minuto delle 20:00;
+- rendere piu robusti conteggio anonimo live, coerenza e sincronizzazione;
 - afterglow salvato come reliquia visiva del giorno;
 - test con due telefoni alla fine del ciclo.
 

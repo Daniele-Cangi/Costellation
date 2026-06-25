@@ -2,8 +2,7 @@
 
 Firebase e usato per rendere vivo il campo anonimo dell'app.
 
-Oggi alimenta il Nearby Field e gli echo.
-Il prossimo passo sara usarlo anche per rendere il Chorus un evento live globale.
+Oggi alimenta il Nearby Field, gli echo e una prima versione del Chorus live.
 
 ## Progetto
 
@@ -78,6 +77,7 @@ Quando il file esiste:
 ```text
 dailyFields/{day}/cells/{cellId}/orbs/{orbId}
 dailyFields/{day}/cells/{cellId}/echoes/{echoId}
+dailyChoruses/{day}/presences/{presenceId}
 ```
 
 Esempio:
@@ -115,36 +115,42 @@ Regole da mantenere:
   - echo inviati;
   - echo ricevuti;
   - mood sintetico del campo.
+- Presenza live nel Chorus:
+  - presence ID anonimo giornaliero;
+  - heartbeat durante la partecipazione;
+  - touch stability;
+  - stillness;
+  - turbulence;
+  - coarse cell ID;
+  - client seed procedurale.
 
 ## Backend Da Fare Per Il Chorus
 
-Il Chorus ora esiste come esperienza visuale locale/time-aware.
-Per renderlo fondativo serve collegarlo a presenza live reale.
+Il Chorus ora ha una prima presenza live reale.
+La versione attuale scrive presenze anonime e ascolta gli ultimi heartbeat attivi.
+Gli aggregati sono calcolati lato client e guidano `ChorusEclipseField`.
 
-Proposta struttura:
+Struttura attuale:
 
 ```text
-dailyChoruses/{day}
 dailyChoruses/{day}/presences/{presenceId}
-dailyChoruses/{day}/minutes/{minuteKey}/presences/{presenceId}
-dailyChoruses/{day}/afterglow/{presenceId}
 ```
 
 Campi consigliati per `presences`:
 
 ```text
-orbId
-joinedAt
-lastSeenAt
+presenceId
+day
 coarseCellId
 touchStability
-motionSignature
 stillness
-localDensity
+turbulence
 clientSeed
+joinedAtMillis
+lastSeenAtMillis
 ```
 
-Campi aggregati da derivare:
+Aggregati derivati lato client:
 
 ```text
 globalPresenceCount
@@ -160,13 +166,12 @@ Devono diventare comportamento della sfera.
 
 ## Roadmap Firebase
 
-1. Aggiungere scrittura presenza live nel minuto Chorus.
-2. Aggiornare heartbeat presenza ogni pochi secondi durante il minuto.
-3. Rimuovere o ignorare presenze scadute.
-4. Calcolare aggregati anonimi lato client o Cloud Function.
-5. Usare gli aggregati per guidare `ChorusEclipseField`.
-6. Salvare afterglow giornaliero come reliquia visuale.
-7. Testare con due telefoni solo alla fine del ciclo.
+1. Raffinare heartbeat: solo finestre temporali realmente rilevanti.
+2. Aggiungere `minutes/{minuteKey}` se serve una separazione piu pulita del minuto centrale.
+3. Valutare Cloud Function per aggregati anonimi server-side.
+4. Salvare afterglow giornaliero come reliquia visuale.
+5. Collegare afterglow all'Archive.
+6. Testare con due telefoni solo alla fine del ciclo.
 
 ## Troubleshooting
 
