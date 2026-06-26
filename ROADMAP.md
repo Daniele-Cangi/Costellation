@@ -36,6 +36,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Nodi con resistenza procedurale: non tutti vengono catturati.
 - Tracce visive dagli echo giornalieri.
 - Sfumatura e tensione della Home quando il campo live vicino non e vuoto.
+- Shake poetico con disturbo breve e ricomposizione lenta.
 
 ### Nearby Field
 
@@ -162,15 +163,20 @@ Da fare:
 
 ### 5. Shake Poetico
 
-Il movimento del telefono oggi influenza l'orb.
-Manca un gesto di disturbo e ricomposizione.
+Prima fase completata: il movimento deciso del telefono ora produce un disturbo poetico e poi ricompone lentamente l'orb.
 
-Da fare:
+Fatto:
 
 - rilevare shake leggero;
 - creare disturbo visuale breve;
 - ricomporre lentamente la costellazione;
 - evitare effetto giocattolo.
+
+Da fare:
+
+- calibrare soglia e cooldown su piu telefoni reali;
+- rendere il feedback haptic piu morbido quando avremo una scelta finale;
+- verificare che non si attivi durante uso normale in camminata.
 
 ### 6. Audio Opzionale
 

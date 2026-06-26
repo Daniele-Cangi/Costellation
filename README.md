@@ -42,6 +42,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Memoria giornaliera del coro: presenze, echo inviati, echo ricevuti.
 - Cicatrici luminose distinte per echo inviati e ricevuti.
 - Orb reattivo al movimento del telefono tramite sensori.
+- Shake poetico: disturbo breve dell'orb e ricomposizione lenta.
 - Home reattiva al campo live vicino quando il permesso approssimativo e gia concesso.
 - Stati rituali dell'orb: Dormant, Listening, Contemplative, NearChorus, Sealed, Resonating.
 - Micro-interazioni: tap, pressione lunga, attrazione della costellazione interna, inerzia del gesto.
@@ -63,6 +64,7 @@ Reagisce a:
 - presenze live del campo vicino;
 - memoria degli echo;
 - movimento del telefono;
+- shake leggero con disturbo e ricomposizione;
 - tap e pressione lunga;
 - attrazione lenta del dito sulla costellazione interna.
 

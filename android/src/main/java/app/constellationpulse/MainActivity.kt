@@ -287,7 +287,8 @@ private data class OrbSensorState(
     val tiltX: Float = 0f,
     val tiltY: Float = 0f,
     val twist: Float = 0f,
-    val motion: Float = 0f
+    val motion: Float = 0f,
+    val shakeToken: Int = 0
 )
 
 private data class ResonanceEcho(
@@ -2800,6 +2801,7 @@ private fun PulseOrb(
     var constellationAttractionPoint by remember { mutableStateOf<Offset?>(null) }
     var isConstellationAttracting by remember { mutableStateOf(false) }
     var isPressedOpen by remember { mutableStateOf(false) }
+    var isShakeDisturbed by remember { mutableStateOf(false) }
     var isContemplating by remember(pulse?.dateKey, pulse?.createdAtMillis, showConstellation) {
         mutableStateOf(false)
     }
@@ -2903,6 +2905,22 @@ private fun PulseOrb(
     } * ritualProfile.heartbeatMultiplier
     val heartbeatPhase = fractional(orbTimeSeconds / (heartbeatDuration / 1000f))
     val sensorState = rememberOrbSensorState(enabled = showConstellation)
+    LaunchedEffect(sensorState.shakeToken, showConstellation, interactive) {
+        if (showConstellation && interactive && sensorState.shakeToken > 0) {
+            isShakeDisturbed = true
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            delay(360)
+            isShakeDisturbed = false
+        }
+    }
+    val shakeDisturbance by animateFloatAsState(
+        targetValue = if (isShakeDisturbed) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = if (isShakeDisturbed) 180 else 2_100,
+            easing = FastOutSlowInEasing
+        ),
+        label = "orb-shake-disturbance"
+    )
     val ritualTone = blendColor(
         ritualToneColor(pulse, tonePhase),
         ritualStateTone(effectiveRitualState, pulse, tonePhase),
@@ -2988,25 +3006,34 @@ private fun PulseOrb(
         val focus = (pulse?.focus ?: 48) / 100f
         val social = (pulse?.social ?: 44) / 100f
         val shimmer = 0.5f + 0.5f * sin(shimmerPhase * 2f * PI.toFloat())
-        val motionPhase = phase * (1f - contemplation * 0.58f) + deepPhase * contemplation * 0.58f
+        val motionPhase = phase * (1f - contemplation * 0.58f) +
+            deepPhase * contemplation * 0.58f +
+            shakeDisturbance * 0.11f
         val contemplativeBreath = 0.5f + 0.5f * sin((deepPhase * 2f * PI.toFloat()) + sigil.seed * 0.013f)
         val sensorWeight = if (showConstellation) 1f else 0f
         val tiltX = sensorState.tiltX * sensorWeight
         val tiltY = sensorState.tiltY * sensorWeight
         val twist = sensorState.twist * sensorWeight
         val motion = sensorState.motion * sensorWeight
-        val parallax = Offset(
-            x = tiltX * min * (0.052f + contemplation * 0.018f),
-            y = tiltY * min * (0.052f + contemplation * 0.018f)
+        val shake = shakeDisturbance * sensorWeight
+        val shakeAngle = orbTimeSeconds * 18f + sigil.seed * 0.011f
+        val shakeOffset = Offset(
+            x = cos(shakeAngle) * min * 0.020f * shake,
+            y = sin(shakeAngle * 0.83f) * min * 0.017f * shake
         )
-        val motionGlow = (motion * 0.16f).coerceIn(0f, 0.16f)
+        val parallax = Offset(
+            x = tiltX * min * (0.052f + contemplation * 0.018f) + shakeOffset.x,
+            y = tiltY * min * (0.052f + contemplation * 0.018f) + shakeOffset.y
+        )
+        val motionGlow = (motion * 0.16f + shake * 0.10f).coerceIn(0f, 0.24f)
         val pulseBeat = (
             pulseBeatEnvelope(heartbeatPhase, energy, arousal) *
                 (0.76f + chorusIntensity * 0.42f + contemplation * 0.22f + ritualProfile.pulseBoost) +
-                motion * 0.12f
+                motion * 0.12f +
+                shake * 0.24f
             ).coerceIn(0f, 1f)
         val pulseTone = blendColor(
-            ritualTone,
+            blendColor(ritualTone, Color.White, shake * 0.16f),
             if (pulse?.isBright == true) Color(0xFFFFE3A6) else Color(0xFFBDFBE2),
             0.38f + energy * 0.28f
         )
@@ -3025,6 +3052,7 @@ private fun PulseOrb(
             x = cos(deepPhase * 2f * PI.toFloat() + sigil.seed * 0.005f) * min * 0.025f * fieldShift,
             y = sin(deepPhase * 2f * PI.toFloat() + sigil.seed * 0.007f) * min * 0.021f * fieldShift
         )
+        val disturbedScale = scale + shake * 0.030f * (0.62f + 0.38f * sin(orbTimeSeconds * 24f))
 
         if (pulseBeat > 0.01f) {
             drawCircle(
@@ -3040,6 +3068,22 @@ private fun PulseOrb(
                 radius = min * (0.42f + pulseBeat * 0.34f),
                 center = center
             )
+        }
+
+        if (shake > 0.01f) {
+            repeat(4) { index ->
+                val radius = min * (0.33f + index * 0.045f + shake * 0.055f)
+                val direction = if (index % 2 == 0) 1f else -1f
+                drawArc(
+                    color = blendColor(pulseHalo, Color.White, 0.32f).copy(alpha = shake * (0.16f - index * 0.024f)),
+                    startAngle = sigil.seed % 360 + index * 83f + orbTimeSeconds * 190f * direction,
+                    sweepAngle = 18f + index * 9f + shake * 38f,
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius + shakeOffset.x * 0.4f, center.y - radius + shakeOffset.y * 0.4f),
+                    size = Size(radius * 2f, radius * 2f),
+                    style = Stroke(width = strokeBase * (0.42f + shake * 0.8f), cap = StrokeCap.Round)
+                )
+            }
         }
 
         if (fieldShift > 0.01f) {
@@ -3249,15 +3293,15 @@ private fun PulseOrb(
         val arcCount = (7f * ritualProfile.density).roundToInt().coerceIn(4, 11)
         repeat(arcCount) { index ->
             val ring = index / (arcCount - 1f)
-            val radius = min * (0.14f + ring * 0.31f)
+            val radius = min * (0.14f + ring * 0.31f + shake * 0.006f * if (index % 2 == 0) 1f else -1f)
             val drift = if (index % 2 == 0) 1f else -1f
-            val start = sigil.seed % 83 + index * 47f + deepPhase * 360f * drift + twist * 18f
-            val sweep = 48f + focus * 44f + sin((motionPhase * 2f * PI.toFloat()) + index) * 10f + contemplation * 16f
+            val start = sigil.seed % 83 + index * 47f + deepPhase * 360f * drift + twist * 18f + shake * drift * (10f + index * 2f)
+            val sweep = 48f + focus * 44f + sin((motionPhase * 2f * PI.toFloat()) + index) * 10f + contemplation * 16f + shake * 14f
             drawArc(
                 color = if (index % 2 == 0) {
-                    sparkle.copy(alpha = (0.055f + shimmer * 0.035f + pulseBeat * 0.04f) * ritualProfile.constellationAlpha)
+                    sparkle.copy(alpha = (0.055f + shimmer * 0.035f + pulseBeat * 0.04f + shake * 0.028f) * ritualProfile.constellationAlpha)
                 } else {
-                    pulseHalo.copy(alpha = (0.05f + energy * 0.035f + pulseBeat * 0.045f) * ritualProfile.constellationAlpha)
+                    pulseHalo.copy(alpha = (0.05f + energy * 0.035f + pulseBeat * 0.045f + shake * 0.024f) * ritualProfile.constellationAlpha)
                 },
                 startAngle = start,
                 sweepAngle = sweep + pulseBeat * 18f,
@@ -3274,14 +3318,27 @@ private fun PulseOrb(
         sigil.strokes.forEachIndexed { index, stroke ->
             val direction = if (index % 2 == 0) 1f else -1f
             val turns = 1f + (index % 2)
-            val angle = (stroke.angle + motionPhase * 360f * turns * direction + deepPhase * 42f * direction + twist * 14f) * PI.toFloat() / 180f
-            val orbit = min * (stroke.orbit + sin(shimmerPhase * 2f * PI.toFloat() + index) * 0.006f + motion * 0.004f + pulseBeat * 0.006f)
+            val resistance = constellationCompliance(sigil.seed, index)
+            val angle = (
+                stroke.angle +
+                    motionPhase * 360f * turns * direction +
+                    deepPhase * 42f * direction +
+                    twist * 14f +
+                    shake * direction * (14f + resistance * 18f)
+                ) * PI.toFloat() / 180f
+            val orbit = min * (
+                stroke.orbit +
+                    sin(shimmerPhase * 2f * PI.toFloat() + index) * 0.006f +
+                    motion * 0.004f +
+                    pulseBeat * 0.006f +
+                    shake * 0.010f * resistance
+                )
             val strokeCenter = Offset(
-                x = center.x + parallax.x * 0.34f + cos(angle) * orbit,
-                y = center.y + parallax.y * 0.34f + sin(angle) * orbit
+                x = center.x + parallax.x * 0.34f + cos(angle) * orbit + cos(shakeAngle + index) * min * 0.012f * shake * resistance,
+                y = center.y + parallax.y * 0.34f + sin(angle) * orbit + sin(shakeAngle + index * 0.7f) * min * 0.010f * shake * resistance
             )
             val tangent = angle + PI.toFloat() / 2f
-            val half = min * stroke.length * 0.5f
+            val half = min * stroke.length * (0.5f + shake * 0.12f * resistance)
             val start = Offset(
                 x = strokeCenter.x - cos(tangent) * half,
                 y = strokeCenter.y - sin(tangent) * half
@@ -3305,15 +3362,27 @@ private fun PulseOrb(
         }
 
         val points = sigil.nodes.mapIndexed { index, node ->
-            val angle = (node.angle + motionPhase * 360f * node.drift + deepPhase * 28f + twist * 10f) * PI.toFloat() / 180f
+            val resistance = constellationCompliance(sigil.seed, index + 17)
+            val angle = (
+                node.angle +
+                    motionPhase * 360f * node.drift +
+                    deepPhase * 28f +
+                    twist * 10f +
+                    shake * node.drift * (9f + resistance * 18f)
+                ) * PI.toFloat() / 180f
             val breathingOrbit = node.orbit +
                 sin((motionPhase * 360f + index * 27f) * PI.toFloat() / 180f) * 0.012f +
                 sin((shimmerPhase * 360f + index * 19f) * PI.toFloat() / 180f) * 0.004f +
                 motion * 0.0035f +
-                pulseBeat * 0.004f
+                pulseBeat * 0.004f +
+                shake * 0.012f * resistance
+            val nodeDisruption = Offset(
+                x = cos(shakeAngle + index * 1.91f) * min * 0.016f * shake * resistance,
+                y = sin(shakeAngle * 0.77f + index * 1.31f) * min * 0.014f * shake * resistance
+            )
             val basePoint = Offset(
-                x = center.x + parallax.x * 0.18f + cos(angle) * min * breathingOrbit,
-                y = center.y + parallax.y * 0.18f + sin(angle) * min * breathingOrbit
+                x = center.x + parallax.x * 0.18f + cos(angle) * min * breathingOrbit + nodeDisruption.x,
+                y = center.y + parallax.y * 0.18f + sin(angle) * min * breathingOrbit + nodeDisruption.y
             )
             if (constellationFocus == null || constellationPull <= 0.01f) {
                 basePoint
@@ -3410,7 +3479,7 @@ private fun PulseOrb(
             )
         }
 
-        scale(scale, scale, pivot = center) {
+        scale(disturbedScale, disturbedScale, pivot = center) {
             if (contemplation > 0.01f) {
                 repeat(9) { index ->
                     val radius = min * (0.055f + index * 0.024f + contemplativeBreath * 0.006f)
@@ -3531,10 +3600,12 @@ private fun rememberOrbSensorState(enabled: Boolean): OrbSensorState {
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val rotationMatrix = FloatArray(9)
         val orientation = FloatArray(3)
+        var lastShakeAtMillis = 0L
 
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 when (event.sensor.type) {
+                    Sensor.TYPE_GAME_ROTATION_VECTOR,
                     Sensor.TYPE_ROTATION_VECTOR -> {
                         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
                         SensorManager.getOrientation(rotationMatrix, orientation)
@@ -3555,9 +3626,22 @@ private fun rememberOrbSensorState(enabled: Boolean): OrbSensorState {
                                 event.values[1] * event.values[1] +
                                 event.values[2] * event.values[2]
                         )
-                        val targetMotion = (abs(magnitude - SensorManager.GRAVITY_EARTH) / 7f).coerceIn(0f, 1f)
+                        val gravityDelta = abs(magnitude - SensorManager.GRAVITY_EARTH)
+                        val targetMotion = (gravityDelta / 7f).coerceIn(0f, 1f)
+                        val now = System.currentTimeMillis()
+                        val nextShakeToken = if (
+                            gravityDelta > 5.8f &&
+                            sensorState.motion > 0.30f &&
+                            now - lastShakeAtMillis > 2_200L
+                        ) {
+                            lastShakeAtMillis = now
+                            sensorState.shakeToken + 1
+                        } else {
+                            sensorState.shakeToken
+                        }
                         sensorState = sensorState.copy(
-                            motion = smooth(sensorState.motion, targetMotion, 0.16f)
+                            motion = smooth(sensorState.motion, targetMotion, 0.16f),
+                            shakeToken = nextShakeToken
                         )
                     }
                 }
