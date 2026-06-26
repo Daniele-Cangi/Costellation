@@ -43,7 +43,10 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Ascolto cella corrente + celle adiacenti.
 - Presenze remote anonime come orb.
 - Echo anonimo verso un orb selezionato.
+- Echo visuale come trasferimento di luce dal proprio orb alla presenza scelta.
+- L'orb ricevente reagisce temporaneamente al passaggio dell'echo.
 - Memoria locale: presenze, echo inviati, echo ricevuti.
+- Cicatrici luminose diverse per echo inviati e ricevuti.
 - Reazione visiva quando il campo cambia.
 - Attrazione magnetica dei piccoli orb verso il dito.
 
@@ -126,14 +129,18 @@ You were part of today's Chorus.
 
 ### 3. Echo Come Trasferimento Di Luce
 
-Echo oggi funziona, ma deve diventare piu fisico.
+Prima fase completata: l'echo ora ha un corpo visivo.
 
-Da fare:
+Fatto:
 
 - animare una traiettoria luminosa dal tuo orb a quello selezionato;
 - far cambiare temporaneamente il colore dell'orb ricevente;
 - lasciare cicatrice diversa per echo inviato e ricevuto;
+
+Da fare:
+
 - aggiungere haptic morbido al rilascio.
+- rendere l'arrivo dell'echo remoto piu evidente quando un altro telefono risponde.
 
 ### 4. Reazione Degli Altri Sulla Home
 

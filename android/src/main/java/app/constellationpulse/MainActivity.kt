@@ -307,6 +307,12 @@ private data class NearbyPresence(
     val scale: Float
 )
 
+private data class EchoTransfer(
+    val id: Int,
+    val presenceId: Int,
+    val startedAtMillis: Long
+)
+
 private val panelShape = RoundedCornerShape(8.dp)
 
 @Composable
@@ -469,7 +475,8 @@ private fun HomeScreen(
                 pulse = todaySeal,
                 modifier = Modifier.size(318.dp),
                 showConstellation = true,
-                echoTraceCount = chorusMemory.sentEchoes + chorusMemory.receivedEchoes,
+                sentEchoTraceCount = chorusMemory.sentEchoes,
+                receivedEchoTraceCount = chorusMemory.receivedEchoes,
                 ritualState = homeOrbRitualState(todaySeal, chorusMemory),
                 onLongPressGesture = onChorusClick
             )
@@ -1251,7 +1258,8 @@ private fun RevealScreen(
                         pulse = pulse,
                         modifier = Modifier.size(306.dp),
                         showConstellation = true,
-                        echoTraceCount = chorusMemory.sentEchoes + chorusMemory.receivedEchoes,
+                        sentEchoTraceCount = chorusMemory.sentEchoes,
+                        receivedEchoTraceCount = chorusMemory.receivedEchoes,
                         ritualState = revealOrbRitualState(pulse, chorusMemory)
                     )
 
@@ -1337,6 +1345,7 @@ private fun NearbyFieldScreen(
     }
     var seenRemoteOrbIds by remember { mutableStateOf(emptySet<String>()) }
     var fieldReaction by remember { mutableStateOf(false) }
+    var echoTransfer by remember { mutableStateOf<EchoTransfer?>(null) }
 
     DisposableEffect(hasLocationPermission, cellId, todaySeal?.dateKey, todaySeal?.createdAtMillis) {
         if (!hasLocationPermission || !firebaseFieldService.isAvailable()) {
@@ -1436,6 +1445,13 @@ private fun NearbyFieldScreen(
         }
     }
 
+    LaunchedEffect(echoTransfer?.id) {
+        if (echoTransfer != null) {
+            delay(1_850)
+            echoTransfer = null
+        }
+    }
+
     PulseScaffold {
         Column(
             modifier = Modifier
@@ -1499,7 +1515,9 @@ private fun NearbyFieldScreen(
                     presences = presences,
                     selectedPresence = selectedPresence,
                     fieldReaction = fieldReaction,
-                    echoTraceCount = chorusMemory.sentEchoes + chorusMemory.receivedEchoes,
+                    echoTransfer = echoTransfer,
+                    sentEchoTraceCount = chorusMemory.sentEchoes,
+                    receivedEchoTraceCount = chorusMemory.receivedEchoes,
                     onSelectPresence = { presence ->
                         selectedPresence = presence
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1516,13 +1534,21 @@ private fun NearbyFieldScreen(
                     echoLine = echoLine,
                     memory = chorusMemory,
                     onSendEcho = {
+                        val targetPresence = selectedPresence
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         fieldReaction = true
+                        if (targetPresence != null) {
+                            echoTransfer = EchoTransfer(
+                                id = (echoTransfer?.id ?: 0) + 1,
+                                presenceId = targetPresence.id,
+                                startedAtMillis = System.currentTimeMillis()
+                            )
+                        }
                         if (firebaseFieldService.isAvailable()) {
-                            selectedPresence?.remoteOrbId?.let { targetOrbId ->
+                            targetPresence?.remoteOrbId?.let { targetOrbId ->
                                 firebaseFieldService.sendEcho(
                                     day = todayKey,
-                                    cellId = selectedPresence?.remoteCellId ?: cellId,
+                                    cellId = targetPresence.remoteCellId ?: cellId,
                                     targetOrbId = targetOrbId
                                 ) { success ->
                                     echoLine = if (success) "Echo released." else "Echo kept locally."
@@ -1532,7 +1558,7 @@ private fun NearbyFieldScreen(
                                 }
                             }
                         }
-                        if (selectedPresence?.remoteOrbId == null) {
+                        if (targetPresence?.remoteOrbId == null) {
                             echoLine = "Echo kept locally."
                             chorusMemory = chorusMemoryRepository.recordSentEcho(todayKey)
                         }
@@ -1556,7 +1582,9 @@ private fun NearbyPresenceField(
     presences: List<NearbyPresence>,
     selectedPresence: NearbyPresence?,
     fieldReaction: Boolean,
-    echoTraceCount: Int,
+    echoTransfer: EchoTransfer?,
+    sentEchoTraceCount: Int,
+    receivedEchoTraceCount: Int,
     onSelectPresence: (NearbyPresence) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1565,6 +1593,14 @@ private fun NearbyPresenceField(
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val phase = rememberOrbTimeSeconds(active = true) / 16f
+    val echoTransferProgress = echoTransfer?.let { transfer ->
+        ((System.currentTimeMillis() - transfer.startedAtMillis) / 1_700f).coerceIn(0f, 1f)
+    } ?: 1f
+    val echoTransferGlow = if (echoTransfer == null) {
+        0f
+    } else {
+        sin(echoTransferProgress * PI.toFloat()).coerceIn(0f, 1f)
+    }
     var attractionPoint by remember { mutableStateOf<Offset?>(null) }
     var isAttracting by remember { mutableStateOf(false) }
     val reactionGlow by animateFloatAsState(
@@ -1714,6 +1750,74 @@ private fun NearbyPresenceField(
                 )
             }
 
+            echoTransfer?.let { transfer ->
+                val targetIndex = presences.indexOfFirst { it.id == transfer.presenceId }
+                if (targetIndex >= 0 && echoTransferProgress < 1f) {
+                    val targetPresence = presences[targetIndex]
+                    val targetPoint = presencePoint(targetPresence, targetIndex)
+                    val travel = echoTransferProgress * echoTransferProgress * (3f - 2f * echoTransferProgress)
+                    val transferTone = blendColor(
+                        pulseHaloColor(targetPresence.pulse),
+                        Color.White,
+                        0.22f + echoTransferGlow * 0.18f
+                    )
+                    val currentPoint = Offset(
+                        x = centerPoint.x + (targetPoint.x - centerPoint.x) * travel,
+                        y = centerPoint.y + (targetPoint.y - centerPoint.y) * travel
+                    )
+                    val trailAlpha = 0.18f + echoTransferGlow * 0.34f
+
+                    drawLine(
+                        color = transferTone.copy(alpha = trailAlpha),
+                        start = centerPoint,
+                        end = currentPoint,
+                        strokeWidth = min * (0.0024f + echoTransferGlow * 0.0024f),
+                        cap = StrokeCap.Round
+                    )
+
+                    repeat(6) { index ->
+                        val lag = (travel - index * 0.055f).coerceIn(0f, 1f)
+                        if (lag > 0.01f) {
+                            val orbit = (phase * 2f * PI.toFloat()) + index * 1.17f
+                            val wobble = min * (0.005f + index * 0.0007f) * echoTransferGlow
+                            val particlePoint = Offset(
+                                x = centerPoint.x + (targetPoint.x - centerPoint.x) * lag + cos(orbit) * wobble,
+                                y = centerPoint.y + (targetPoint.y - centerPoint.y) * lag + sin(orbit) * wobble
+                            )
+                            drawCircle(
+                                color = transferTone.copy(alpha = (0.22f - index * 0.024f) * echoTransferGlow),
+                                radius = min * (0.006f + (5 - index) * 0.0008f),
+                                center = particlePoint
+                            )
+                        }
+                    }
+
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                transferTone.copy(alpha = 0.20f * echoTransferGlow),
+                                pulseHaloColor(targetPresence.pulse).copy(alpha = 0.10f * echoTransferGlow),
+                                Color.Transparent
+                            ),
+                            center = currentPoint,
+                            radius = min * (0.05f + echoTransferGlow * 0.07f)
+                        ),
+                        radius = min * (0.05f + echoTransferGlow * 0.07f),
+                        center = currentPoint
+                    )
+
+                    if (travel > 0.62f) {
+                        val arrival = ((travel - 0.62f) / 0.38f).coerceIn(0f, 1f)
+                        drawCircle(
+                            color = transferTone.copy(alpha = 0.20f * arrival),
+                            radius = min * (0.045f + arrival * 0.065f),
+                            center = targetPoint,
+                            style = Stroke(width = min * (0.002f + arrival * 0.002f), cap = StrokeCap.Round)
+                        )
+                    }
+                }
+            }
+
             presences.forEachIndexed { index, presence ->
                 val point = presencePoint(presence, index)
                 drawLine(
@@ -1761,7 +1865,8 @@ private fun NearbyPresenceField(
                 pulse = selfPulse,
                 modifier = Modifier.fillMaxSize(),
                 showConstellation = false,
-                echoTraceCount = echoTraceCount,
+                sentEchoTraceCount = sentEchoTraceCount,
+                receivedEchoTraceCount = receivedEchoTraceCount,
                 ritualState = if (fieldReaction) OrbRitualState.Resonating else OrbRitualState.Listening
             )
         }
@@ -1785,6 +1890,8 @@ private fun NearbyPresenceField(
                 ).coerceIn(0.06f, 0.94f)
             val orbSize = (42f + presence.scale * 30f).dp
             val isSelected = selectedPresence?.id == presence.id
+            val isReceivingEcho = echoTransfer?.presenceId == presence.id && echoTransferProgress < 1f
+            val receivingGlow = if (isReceivingEcho) echoTransferGlow else 0f
 
             Box(
                 modifier = Modifier
@@ -1796,8 +1903,14 @@ private fun NearbyPresenceField(
                     .clip(RoundedCornerShape(999.dp))
                     .border(
                         BorderStroke(
-                            width = if (isSelected) 1.5.dp else 0.6.dp,
-                            color = if (isSelected) {
+                            width = when {
+                                isReceivingEcho -> (1.8f + receivingGlow * 1.2f).dp
+                                isSelected -> 1.5.dp
+                                else -> 0.6.dp
+                            },
+                            color = if (isReceivingEcho) {
+                                pulseHaloColor(presence.pulse).copy(alpha = 0.82f + receivingGlow * 0.16f)
+                            } else if (isSelected) {
                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
                             } else {
                                 MaterialTheme.colorScheme.outline.copy(alpha = 0.38f)
@@ -1811,7 +1924,9 @@ private fun NearbyPresenceField(
                 PulseOrb(
                     pulse = presence.pulse,
                     modifier = Modifier.fillMaxSize(),
-                    showConstellation = false
+                    showConstellation = false,
+                    echoTraceCount = if (isReceivingEcho) 1 else 0,
+                    ritualState = if (isReceivingEcho) OrbRitualState.Resonating else null
                 )
             }
         }
@@ -2488,6 +2603,8 @@ private fun PulseOrb(
     modifier: Modifier = Modifier,
     showConstellation: Boolean,
     echoTraceCount: Int = 0,
+    sentEchoTraceCount: Int = echoTraceCount,
+    receivedEchoTraceCount: Int = 0,
     ritualState: OrbRitualState? = null,
     onPressChanged: (Boolean) -> Unit = {},
     onLongPressGesture: (() -> Unit)? = null,
@@ -2705,7 +2822,8 @@ private fun PulseOrb(
         )
         val pulseCore = blendColor(core, pulseTone, 0.12f + pulseBeat * 0.34f)
         val pulseHalo = blendColor(halo, pulseTone, 0.16f + pulseBeat * 0.44f)
-        val traceCount = echoTraceCount.coerceIn(0, 12)
+        val receivedTraceCount = receivedEchoTraceCount.coerceIn(0, 6)
+        val sentTraceCount = sentEchoTraceCount.coerceIn(0, 12 - receivedTraceCount)
         val constellationPull = if (showConstellation) constellationAttraction else 0f
         val constellationFocus = constellationAttractionPoint
 
@@ -2819,8 +2937,8 @@ private fun PulseOrb(
             )
         }
 
-        if (traceCount > 0) {
-            repeat(traceCount) { index ->
+        if (sentTraceCount > 0) {
+            repeat(sentTraceCount) { index ->
                 val random = Random(sigil.seed + index * 7349)
                 val angle = (random.nextFloat() * 360f + deepPhase * 18f * if (index % 2 == 0) 1f else -1f) * PI.toFloat() / 180f
                 val radius = min * (0.18f + random.nextFloat() * 0.26f)
@@ -2850,6 +2968,47 @@ private fun PulseOrb(
                     color = quiet.copy(alpha = traceAlpha * 0.55f),
                     radius = strokeBase * (0.85f + (index % 2) * 0.55f),
                     center = markCenter
+                )
+            }
+        }
+
+        if (receivedTraceCount > 0) {
+            repeat(receivedTraceCount) { index ->
+                val random = Random(sigil.seed + 41_003 + index * 8923)
+                val angle = (random.nextFloat() * 360f - deepPhase * 14f * if (index % 2 == 0) 1f else -1f) * PI.toFloat() / 180f
+                val radius = min * (0.16f + random.nextFloat() * 0.30f)
+                val length = min * (0.032f + random.nextFloat() * 0.060f)
+                val markCenter = Offset(
+                    x = center.x + cos(angle) * radius + parallax.x * 0.10f,
+                    y = center.y + sin(angle) * radius + parallax.y * 0.10f
+                )
+                val receivedTone = blendColor(pulseHalo, Color(0xFFBDFBE2), 0.46f)
+                val start = Offset(
+                    x = markCenter.x + cos(angle) * length,
+                    y = markCenter.y + sin(angle) * length
+                )
+                val end = Offset(
+                    x = markCenter.x - cos(angle) * length * 0.54f,
+                    y = markCenter.y - sin(angle) * length * 0.54f
+                )
+                val traceAlpha = 0.14f + (index % 4) * 0.022f + pulseBeat * 0.075f
+                drawLine(
+                    color = receivedTone.copy(alpha = traceAlpha),
+                    start = start,
+                    end = end,
+                    strokeWidth = strokeBase * (0.62f + (index % 3) * 0.18f),
+                    cap = StrokeCap.Round
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = traceAlpha * 0.58f),
+                    radius = strokeBase * (0.78f + (index % 2) * 0.46f),
+                    center = end
+                )
+                drawCircle(
+                    color = receivedTone.copy(alpha = traceAlpha * 0.42f),
+                    radius = strokeBase * (1.55f + (index % 2) * 0.5f),
+                    center = markCenter,
+                    style = Stroke(width = strokeBase * 0.34f)
                 )
             }
         }

@@ -38,7 +38,9 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Chorus live backend iniziale con presenze anonime, heartbeat e aggregati visuali.
 - Afterglow relic salvata nell'Archive e condivisa su Firestore quando disponibile.
 - Echo anonimi tra orb vicini.
+- Echo visuale come trasferimento di luce verso l'orb selezionato.
 - Memoria giornaliera del coro: presenze, echo inviati, echo ricevuti.
+- Cicatrici luminose distinte per echo inviati e ricevuti.
 - Orb reattivo al movimento del telefono tramite sensori.
 - Stati rituali dell'orb: Dormant, Listening, Contemplative, NearChorus, Sealed, Resonating.
 - Micro-interazioni: tap, pressione lunga, attrazione della costellazione interna, inerzia del gesto.
@@ -72,6 +74,7 @@ Le interazioni attuali:
 - ascolto di presenze nella cella e nelle celle adiacenti;
 - selezione di un orb vicino;
 - invio di echo anonimo;
+- traiettoria luminosa dell'echo dal proprio orb alla presenza scelta;
 - reazione visiva quando arrivano nuove presenze o echo;
 - attrazione magnetica dei piccoli orb verso il dito.
 
@@ -150,6 +153,7 @@ Il prossimo lavoro importante e rendere il Chorus realmente live:
 - raffinare presenza globale nel minuto delle 20:00;
 - rendere piu robusti conteggio anonimo live, coerenza e sincronizzazione;
 - afterglow relic condivisa da rendere piu robusta con aggregazione backend/server-side;
+- portare la sensibilita del campo live anche nella Home;
 - test con due telefoni alla fine del ciclo.
 
 La versione Apple/iOS e prevista piu avanti. La scelta tecnica confermata e Kotlin Multiplatform per il cuore condiviso + SwiftUI nativa per l'esperienza iPhone.
