@@ -178,6 +178,12 @@ Da fare:
 - rendere il feedback haptic piu morbido quando avremo una scelta finale;
 - verificare che non si attivi durante uso normale in camminata.
 
+Nota di calibrazione:
+
+- prima passata fatta con rilevamento basato su accelerazione + jerk;
+- cooldown aumentato per evitare ripetizioni ravvicinate;
+- intensita visuale ridotta per restare poetica, non arcade.
+
 ### 6. Audio Opzionale
 
 Da fare solo quando l'esperienza visuale e stabile.

@@ -611,7 +611,7 @@ private fun HomeOrbField(
     val secondary = MaterialTheme.colorScheme.secondary
     val influence by animateFloatAsState(
         targetValue = fieldIntensity.coerceIn(0f, 1f),
-        animationSpec = tween(1_800, easing = FastOutSlowInEasing),
+        animationSpec = tween(2_400, easing = FastOutSlowInEasing),
         label = "home-field-influence"
     )
 
@@ -2914,9 +2914,9 @@ private fun PulseOrb(
         }
     }
     val shakeDisturbance by animateFloatAsState(
-        targetValue = if (isShakeDisturbed) 1f else 0f,
+        targetValue = if (isShakeDisturbed) 0.78f else 0f,
         animationSpec = tween(
-            durationMillis = if (isShakeDisturbed) 180 else 2_100,
+            durationMillis = if (isShakeDisturbed) 220 else 2_350,
             easing = FastOutSlowInEasing
         ),
         label = "orb-shake-disturbance"
@@ -3018,8 +3018,8 @@ private fun PulseOrb(
         val shake = shakeDisturbance * sensorWeight
         val shakeAngle = orbTimeSeconds * 18f + sigil.seed * 0.011f
         val shakeOffset = Offset(
-            x = cos(shakeAngle) * min * 0.020f * shake,
-            y = sin(shakeAngle * 0.83f) * min * 0.017f * shake
+            x = cos(shakeAngle) * min * 0.016f * shake,
+            y = sin(shakeAngle * 0.83f) * min * 0.014f * shake
         )
         val parallax = Offset(
             x = tiltX * min * (0.052f + contemplation * 0.018f) + shakeOffset.x,
@@ -3052,7 +3052,7 @@ private fun PulseOrb(
             x = cos(deepPhase * 2f * PI.toFloat() + sigil.seed * 0.005f) * min * 0.025f * fieldShift,
             y = sin(deepPhase * 2f * PI.toFloat() + sigil.seed * 0.007f) * min * 0.021f * fieldShift
         )
-        val disturbedScale = scale + shake * 0.030f * (0.62f + 0.38f * sin(orbTimeSeconds * 24f))
+        val disturbedScale = scale + shake * 0.022f * (0.62f + 0.38f * sin(orbTimeSeconds * 24f))
 
         if (pulseBeat > 0.01f) {
             drawCircle(
@@ -3601,6 +3601,7 @@ private fun rememberOrbSensorState(enabled: Boolean): OrbSensorState {
         val rotationMatrix = FloatArray(9)
         val orientation = FloatArray(3)
         var lastShakeAtMillis = 0L
+        var previousGravityDelta = 0f
 
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
@@ -3627,20 +3628,23 @@ private fun rememberOrbSensorState(enabled: Boolean): OrbSensorState {
                                 event.values[2] * event.values[2]
                         )
                         val gravityDelta = abs(magnitude - SensorManager.GRAVITY_EARTH)
+                        val accelerationJerk = abs(gravityDelta - previousGravityDelta)
                         val targetMotion = (gravityDelta / 7f).coerceIn(0f, 1f)
                         val now = System.currentTimeMillis()
                         val nextShakeToken = if (
-                            gravityDelta > 5.8f &&
-                            sensorState.motion > 0.30f &&
-                            now - lastShakeAtMillis > 2_200L
+                            gravityDelta > 5.2f &&
+                            accelerationJerk > 2.35f &&
+                            sensorState.motion > 0.24f &&
+                            now - lastShakeAtMillis > 2_800L
                         ) {
                             lastShakeAtMillis = now
                             sensorState.shakeToken + 1
                         } else {
                             sensorState.shakeToken
                         }
+                        previousGravityDelta = gravityDelta
                         sensorState = sensorState.copy(
-                            motion = smooth(sensorState.motion, targetMotion, 0.16f),
+                            motion = smooth(sensorState.motion, targetMotion, 0.12f),
                             shakeToken = nextShakeToken
                         )
                     }
@@ -4201,8 +4205,8 @@ private fun homeFieldIntensity(orbs: List<RemoteFieldOrb>): Float {
     val energy = (orbs.map { it.energy }.average().toFloat() / 100f).coerceIn(0f, 1f)
     val social = (orbs.map { it.social }.average().toFloat() / 100f).coerceIn(0f, 1f)
 
-    return (0.16f + density * 0.38f + recency * 0.24f + energy * 0.12f + social * 0.10f)
-        .coerceIn(0.18f, 1f)
+    return (0.10f + density * 0.28f + recency * 0.16f + energy * 0.10f + social * 0.08f)
+        .coerceIn(0.12f, 0.86f)
 }
 
 private fun homeFieldLine(orbs: List<RemoteFieldOrb>, isSealed: Boolean): String {
