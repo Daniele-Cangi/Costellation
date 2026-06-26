@@ -313,6 +313,14 @@ private data class EchoTransfer(
     val startedAtMillis: Long
 )
 
+private data class HomeFieldState(
+    val presences: List<RemoteFieldOrb> = emptyList(),
+    val localOrbId: String? = null
+) {
+    val visiblePresences: List<RemoteFieldOrb>
+        get() = presences.filterNot { it.orbId == localOrbId }
+}
+
 private val panelShape = RoundedCornerShape(8.dp)
 
 @Composable
@@ -428,10 +436,69 @@ private fun HomeScreen(
     onNearbyClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val firebaseFieldService = remember {
+        FirebaseFieldService(context.applicationContext)
+    }
     val chorusMemory = remember(todaySeal?.dateKey) {
         ChorusMemoryRepository(context.applicationContext).load(todaySeal?.dateKey ?: PulseSeal.todayKey())
     }
+    val todayKey = remember { PulseSeal.todayKey() }
+    val hasHomeLocationPermission = hasCoarseLocationPermission(context)
+    val homeCellId = remember(hasHomeLocationPermission) {
+        nearbyCellId(context, hasHomeLocationPermission)
+    }
+    val homeListeningCellIds = remember(homeCellId) {
+        nearbyCellIds(homeCellId)
+    }
+    var fieldState by remember { mutableStateOf(HomeFieldState()) }
+    val visibleFieldPresences = fieldState.visiblePresences
+    val homeFieldPulse = remember(visibleFieldPresences) {
+        buildHomeFieldPulse(todayKey, visibleFieldPresences)
+    }
+    val homeFieldIntensity = remember(visibleFieldPresences) {
+        homeFieldIntensity(visibleFieldPresences)
+    }
+    val homeFieldLine = remember(visibleFieldPresences, todaySeal?.dateKey) {
+        homeFieldLine(visibleFieldPresences, todaySeal != null)
+    }
     var countdown by remember { mutableStateOf(formatCountdown(millisUntilChorus())) }
+
+    DisposableEffect(hasHomeLocationPermission, homeCellId, todaySeal?.dateKey, todaySeal?.createdAtMillis) {
+        if (!hasHomeLocationPermission || !firebaseFieldService.isAvailable()) {
+            fieldState = HomeFieldState()
+            onDispose { }
+        } else {
+            val registrations = mutableListOf<ListenerRegistration>()
+            var latestByCell = emptyMap<String, List<RemoteFieldOrb>>()
+
+            firebaseFieldService.resolveDailyOrbId(todayKey) { orbId ->
+                fieldState = fieldState.copy(localOrbId = orbId)
+                if (todaySeal != null) {
+                    firebaseFieldService.publishOrb(homeCellId, todaySeal)
+                }
+            }
+
+            homeListeningCellIds.forEach { listenedCellId ->
+                firebaseFieldService.listenNearbyField(
+                    day = todayKey,
+                    cellId = listenedCellId,
+                    onUpdate = { orbs ->
+                        latestByCell = latestByCell + (listenedCellId to orbs)
+                        fieldState = fieldState.copy(
+                            presences = mergeRemoteOrbs(latestByCell.values.flatten())
+                        )
+                    },
+                    onError = {
+                        fieldState = fieldState.copy(presences = emptyList())
+                    }
+                )?.let { registrations += it }
+            }
+
+            onDispose {
+                registrations.forEach { it.remove() }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -471,13 +538,15 @@ private fun HomeScreen(
                 )
             }
 
-            PulseOrb(
+            HomeOrbField(
                 pulse = todaySeal,
                 modifier = Modifier.size(318.dp),
-                showConstellation = true,
                 sentEchoTraceCount = chorusMemory.sentEchoes,
                 receivedEchoTraceCount = chorusMemory.receivedEchoes,
                 ritualState = homeOrbRitualState(todaySeal, chorusMemory),
+                fieldPulse = homeFieldPulse,
+                fieldIntensity = homeFieldIntensity,
+                fieldSeed = visibleFieldPresences.fold(todayKey.hashCode()) { acc, orb -> acc xor orb.orbId.hashCode() },
                 onLongPressGesture = onChorusClick
             )
 
@@ -514,13 +583,122 @@ private fun HomeScreen(
 
                 AnimatedVisibility(visible = todaySeal != null) {
                     Text(
-                        text = "The chorus has your signal.",
+                        text = homeFieldLine,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeOrbField(
+    pulse: PulseSeal?,
+    sentEchoTraceCount: Int,
+    receivedEchoTraceCount: Int,
+    ritualState: OrbRitualState,
+    fieldPulse: PulseSeal?,
+    fieldIntensity: Float,
+    fieldSeed: Int,
+    onLongPressGesture: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val time = rememberOrbTimeSeconds(active = true)
+    val fieldTone = pulseHaloColor(fieldPulse)
+    val secondary = MaterialTheme.colorScheme.secondary
+    val influence by animateFloatAsState(
+        targetValue = fieldIntensity.coerceIn(0f, 1f),
+        animationSpec = tween(1_800, easing = FastOutSlowInEasing),
+        label = "home-field-influence"
+    )
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            if (influence <= 0.01f) {
+                return@Canvas
+            }
+
+            val min = size.minDimension
+            val centerPoint = center
+            val pulseWave = 0.5f + 0.5f * sin(time * 0.72f + fieldSeed * 0.003f)
+            val driftAngle = (fieldSeed % 360 + time * 8.5f) * PI.toFloat() / 180f
+            val drift = Offset(
+                x = cos(driftAngle) * min * 0.040f * influence,
+                y = sin(driftAngle) * min * 0.034f * influence
+            )
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        fieldTone.copy(alpha = 0.13f * influence),
+                        secondary.copy(alpha = 0.055f * influence),
+                        Color.Transparent
+                    ),
+                    center = centerPoint + drift,
+                    radius = min * (0.54f + influence * 0.18f + pulseWave * 0.025f)
+                ),
+                radius = min * (0.54f + influence * 0.18f + pulseWave * 0.025f),
+                center = centerPoint + drift * 0.35f
+            )
+
+            repeat(7) { index ->
+                val random = Random(fieldSeed + index * 12_391)
+                val side = if (index % 2 == 0) 1f else -1f
+                val angle = (
+                    random.nextFloat() * 360f +
+                        time * (5.5f + index * 0.45f) * side
+                    ) * PI.toFloat() / 180f
+                val outer = min * (0.49f + random.nextFloat() * 0.08f)
+                val inner = min * (0.39f + random.nextFloat() * 0.05f)
+                val start = Offset(
+                    x = centerPoint.x + cos(angle) * outer,
+                    y = centerPoint.y + sin(angle) * outer
+                )
+                val end = Offset(
+                    x = centerPoint.x + cos(angle + 0.11f * side) * inner + drift.x * 0.48f,
+                    y = centerPoint.y + sin(angle + 0.11f * side) * inner + drift.y * 0.48f
+                )
+                val alpha = (0.035f + index * 0.005f + pulseWave * 0.018f) * influence
+
+                drawLine(
+                    color = if (index % 3 == 0) {
+                        fieldTone.copy(alpha = alpha * 1.45f)
+                    } else {
+                        Color.White.copy(alpha = alpha)
+                    },
+                    start = start,
+                    end = end,
+                    strokeWidth = min * (0.0015f + influence * 0.0012f),
+                    cap = StrokeCap.Round
+                )
+                drawCircle(
+                    color = fieldTone.copy(alpha = alpha * 1.2f),
+                    radius = min * (0.004f + random.nextFloat() * 0.004f),
+                    center = start
+                )
+            }
+        }
+
+        PulseOrb(
+            pulse = pulse,
+            modifier = Modifier.fillMaxSize(),
+            showConstellation = true,
+            sentEchoTraceCount = sentEchoTraceCount,
+            receivedEchoTraceCount = receivedEchoTraceCount,
+            ritualState = if (influence > 0.08f && ritualState == OrbRitualState.Sealed) {
+                OrbRitualState.Resonating
+            } else {
+                ritualState
+            },
+            fieldInfluence = influence,
+            fieldTone = fieldTone,
+            onLongPressGesture = onLongPressGesture
+        )
     }
 }
 
@@ -2606,6 +2784,8 @@ private fun PulseOrb(
     sentEchoTraceCount: Int = echoTraceCount,
     receivedEchoTraceCount: Int = 0,
     ritualState: OrbRitualState? = null,
+    fieldInfluence: Float = 0f,
+    fieldTone: Color? = null,
     onPressChanged: (Boolean) -> Unit = {},
     onLongPressGesture: (() -> Unit)? = null,
     interactive: Boolean = showConstellation
@@ -2728,15 +2908,25 @@ private fun PulseOrb(
         ritualStateTone(effectiveRitualState, pulse, tonePhase),
         ritualProfile.toneBlend
     )
+    val fieldShift = if (showConstellation) fieldInfluence.coerceIn(0f, 1f) else 0f
+    val resolvedFieldTone = fieldTone ?: ritualTone
     val core = blendColor(
         pulseCoreColor(pulse),
-        ritualTone,
-        if (showConstellation) 0.08f + chorusIntensity * 0.16f + ritualProfile.toneBlend * 0.12f else 0f
+        blendColor(ritualTone, resolvedFieldTone, fieldShift * 0.62f),
+        if (showConstellation) {
+            0.08f + chorusIntensity * 0.16f + ritualProfile.toneBlend * 0.12f + fieldShift * 0.11f
+        } else {
+            0f
+        }
     )
     val halo = blendColor(
         pulseHaloColor(pulse),
-        ritualTone,
-        if (showConstellation) 0.12f + chorusIntensity * 0.20f + ritualProfile.toneBlend * 0.18f else 0f
+        blendColor(ritualTone, resolvedFieldTone, fieldShift * 0.72f),
+        if (showConstellation) {
+            0.12f + chorusIntensity * 0.20f + ritualProfile.toneBlend * 0.18f + fieldShift * 0.16f
+        } else {
+            0f
+        }
     )
     val sparkle = if (pulse?.isBright == true) Color(0xFFFFD88A) else Color(0xFFB8F3D6)
     val quiet = Color(0xFFF5F2E9)
@@ -2826,6 +3016,15 @@ private fun PulseOrb(
         val sentTraceCount = sentEchoTraceCount.coerceIn(0, 12 - receivedTraceCount)
         val constellationPull = if (showConstellation) constellationAttraction else 0f
         val constellationFocus = constellationAttractionPoint
+        val fieldWave = if (fieldShift > 0.01f) {
+            0.5f + 0.5f * sin((deepPhase * 2f * PI.toFloat()) + sigil.seed * 0.009f)
+        } else {
+            0f
+        }
+        val fieldOffset = Offset(
+            x = cos(deepPhase * 2f * PI.toFloat() + sigil.seed * 0.005f) * min * 0.025f * fieldShift,
+            y = sin(deepPhase * 2f * PI.toFloat() + sigil.seed * 0.007f) * min * 0.021f * fieldShift
+        )
 
         if (pulseBeat > 0.01f) {
             drawCircle(
@@ -2840,6 +3039,40 @@ private fun PulseOrb(
                 ),
                 radius = min * (0.42f + pulseBeat * 0.34f),
                 center = center
+            )
+        }
+
+        if (fieldShift > 0.01f) {
+            drawOval(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        resolvedFieldTone.copy(alpha = 0.13f * fieldShift),
+                        pulseHalo.copy(alpha = 0.055f * fieldShift),
+                        Color.Transparent
+                    ),
+                    center = center + fieldOffset,
+                    radius = min * (0.48f + fieldShift * 0.14f)
+                ),
+                topLeft = Offset(
+                    x = center.x - min * (0.48f + fieldShift * 0.035f) + fieldOffset.x * 0.40f,
+                    y = center.y - min * (0.43f - fieldShift * 0.018f) + fieldOffset.y * 0.40f
+                ),
+                size = Size(
+                    width = min * (0.96f + fieldShift * 0.07f),
+                    height = min * (0.86f - fieldShift * 0.035f + fieldWave * 0.018f)
+                )
+            )
+            drawArc(
+                color = resolvedFieldTone.copy(alpha = 0.12f * fieldShift),
+                startAngle = sigil.seed % 360 + deepPhase * 140f,
+                sweepAngle = 72f + fieldWave * 28f,
+                useCenter = false,
+                topLeft = Offset(
+                    x = center.x - min * 0.48f + fieldOffset.x * 0.34f,
+                    y = center.y - min * 0.46f + fieldOffset.y * 0.34f
+                ),
+                size = Size(min * 0.96f, min * 0.92f),
+                style = Stroke(width = strokeBase * (0.62f + fieldShift), cap = StrokeCap.Round)
             )
         }
 
@@ -3848,6 +4081,61 @@ private fun chorusFieldMood(orbs: List<RemoteFieldOrb>): String {
         energy > 70.0 -> "The chorus gathered a charged glow."
         social < 30.0 -> "The chorus stayed distant but present."
         else -> "The chorus held a soft shared weather."
+    }
+}
+
+private fun buildHomeFieldPulse(day: String, orbs: List<RemoteFieldOrb>): PulseSeal? {
+    if (orbs.isEmpty()) {
+        return null
+    }
+
+    return PulseSeal(
+        dateKey = day,
+        createdAtMillis = orbs.maxOf { it.createdAtMillis },
+        message = "",
+        valence = orbs.map { it.valence }.average().roundToInt().coerceIn(0, 100),
+        arousal = orbs.map { it.arousal }.average().roundToInt().coerceIn(0, 100),
+        energy = orbs.map { it.energy }.average().roundToInt().coerceIn(0, 100),
+        focus = orbs.map { it.focus }.average().roundToInt().coerceIn(0, 100),
+        social = orbs.map { it.social }.average().roundToInt().coerceIn(0, 100)
+    )
+}
+
+private fun homeFieldIntensity(orbs: List<RemoteFieldOrb>): Float {
+    if (orbs.isEmpty()) {
+        return 0f
+    }
+
+    val density = (orbs.size / 7f).coerceIn(0f, 1f)
+    val recency = orbs
+        .maxOfOrNull { it.createdAtMillis }
+        ?.let { latest ->
+            val age = (System.currentTimeMillis() - latest).coerceAtLeast(0L)
+            (1f - age / (22f * 60_000f)).coerceIn(0.18f, 1f)
+        }
+        ?: 0.18f
+    val energy = (orbs.map { it.energy }.average().toFloat() / 100f).coerceIn(0f, 1f)
+    val social = (orbs.map { it.social }.average().toFloat() / 100f).coerceIn(0f, 1f)
+
+    return (0.16f + density * 0.38f + recency * 0.24f + energy * 0.12f + social * 0.10f)
+        .coerceIn(0.18f, 1f)
+}
+
+private fun homeFieldLine(orbs: List<RemoteFieldOrb>, isSealed: Boolean): String {
+    if (!isSealed) {
+        return "The field is waiting for your signal."
+    }
+    if (orbs.isEmpty()) {
+        return "The chorus has your signal."
+    }
+
+    val pulse = buildHomeFieldPulse(PulseSeal.todayKey(), orbs) ?: return "The chorus has your signal."
+    return when {
+        pulse.social >= 68 && pulse.valence >= 58 -> "Nearby light is leaning close."
+        pulse.arousal >= 72 -> "A restless current is touching the orb."
+        pulse.energy >= 72 -> "The field is gathering a charged glow."
+        pulse.valence <= 34 -> "A low light is passing through the field."
+        else -> "The nearby field is no longer empty."
     }
 }
 

@@ -35,6 +35,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Movimento del dito filtrato con inerzia.
 - Nodi con resistenza procedurale: non tutti vengono catturati.
 - Tracce visive dagli echo giornalieri.
+- Sfumatura e tensione della Home quando il campo live vicino non e vuoto.
 
 ### Nearby Field
 
@@ -144,14 +145,20 @@ Da fare:
 
 ### 4. Reazione Degli Altri Sulla Home
 
-La Home deve sentire il mondo anche fuori dal Nearby Field.
+Prima fase completata: la Home ora sente il mondo anche fuori dal Nearby Field.
 
-Da fare:
+Fatto:
 
 - ascoltare un segnale leggero di presenza live;
 - deformare appena l'orb quando il campo non e vuoto;
 - sfumare il colore verso il mood del campo;
 - usare linee di tensione molto sottili.
+
+Da fare:
+
+- rendere il segnale ancora meno testuale;
+- calibrare intensita e durata con test su telefono reale;
+- valutare un fallback locale se Firebase non e disponibile.
 
 ### 5. Shake Poetico
 

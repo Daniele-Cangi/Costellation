@@ -42,6 +42,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Memoria giornaliera del coro: presenze, echo inviati, echo ricevuti.
 - Cicatrici luminose distinte per echo inviati e ricevuti.
 - Orb reattivo al movimento del telefono tramite sensori.
+- Home reattiva al campo live vicino quando il permesso approssimativo e gia concesso.
 - Stati rituali dell'orb: Dormant, Listening, Contemplative, NearChorus, Sealed, Resonating.
 - Micro-interazioni: tap, pressione lunga, attrazione della costellazione interna, inerzia del gesto.
 - Chorus mode con fasi Pre-Chorus, Entry, Convergence, The Minute, Afterglow e Sealed.
@@ -59,6 +60,7 @@ Reagisce a:
 - stato emotivo sigillato;
 - tempo del giorno;
 - avvicinamento al Chorus;
+- presenze live del campo vicino;
 - memoria degli echo;
 - movimento del telefono;
 - tap e pressione lunga;
@@ -153,7 +155,7 @@ Il prossimo lavoro importante e rendere il Chorus realmente live:
 - raffinare presenza globale nel minuto delle 20:00;
 - rendere piu robusti conteggio anonimo live, coerenza e sincronizzazione;
 - afterglow relic condivisa da rendere piu robusta con aggregazione backend/server-side;
-- portare la sensibilita del campo live anche nella Home;
+- raffinare la sensibilita della Home con segnali piu sottili e meno testuali;
 - test con due telefoni alla fine del ciclo.
 
 La versione Apple/iOS e prevista piu avanti. La scelta tecnica confermata e Kotlin Multiplatform per il cuore condiviso + SwiftUI nativa per l'esperienza iPhone.
