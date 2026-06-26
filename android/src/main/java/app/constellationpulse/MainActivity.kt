@@ -573,6 +573,23 @@ private fun ChorusScreen(
         }
     }
 
+    DisposableEffect(firebaseFieldService, day) {
+        val registration = firebaseFieldService.listenSharedChorusRelic(
+            day = day,
+            onUpdate = { remoteRelic ->
+                remoteRelic?.toChorusRelic()?.let { sharedRelic ->
+                    onRelicSealed(sharedRelic)
+                    savedRelicDay = day
+                }
+            },
+            onError = {}
+        )
+
+        onDispose {
+            registration?.remove()
+        }
+    }
+
     val timeStage = chorusTimeStage(nowMillis)
     val stage = when {
         timeStage == ChorusStage.Minute && hasEntered -> ChorusStage.Minute
@@ -655,19 +672,19 @@ private fun ChorusScreen(
         }
 
         val fallbackPresence = if (hasEntered) 1 else 0
-        onRelicSealed(
-            ChorusRelic(
-                day = day,
-                createdAtMillis = System.currentTimeMillis(),
-                afterglowSeed = chorusLiveState.afterglowSeed.takeIf { it != 0 }
-                    ?: (clientSeed xor day.hashCode()),
-                globalPresenceCount = chorusLiveState.globalPresenceCount.coerceAtLeast(fallbackPresence),
-                localFieldDensity = chorusLiveState.localFieldDensity,
-                synchronizationLevel = chorusLiveState.synchronizationLevel,
-                coherence = chorusLiveState.coherence,
-                turbulence = chorusLiveState.turbulence
-            )
+        val relic = ChorusRelic(
+            day = day,
+            createdAtMillis = System.currentTimeMillis(),
+            afterglowSeed = chorusLiveState.afterglowSeed.takeIf { it != 0 }
+                ?: (clientSeed xor day.hashCode()),
+            globalPresenceCount = chorusLiveState.globalPresenceCount.coerceAtLeast(fallbackPresence),
+            localFieldDensity = chorusLiveState.localFieldDensity,
+            synchronizationLevel = chorusLiveState.synchronizationLevel,
+            coherence = chorusLiveState.coherence,
+            turbulence = chorusLiveState.turbulence
         )
+        onRelicSealed(relic)
+        firebaseFieldService.publishSharedChorusRelic(relic)
         savedRelicDay = day
     }
 
@@ -1929,16 +1946,31 @@ private fun HistoryScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     if (chorusRelics.isNotEmpty()) {
-                        item(key = "chorus-relics-label") {
+                        val latestRelic = chorusRelics.first()
+                        val olderRelics = chorusRelics.drop(1)
+                        item(key = "latest-chorus-relic-label") {
                             Text(
-                                text = "Chorus relics",
+                                text = "Latest Chorus",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 letterSpacing = 1.sp
                             )
                         }
-                        items(chorusRelics, key = { relic -> "relic-${relic.day}" }) { relic ->
-                            ChorusRelicRow(relic = relic)
+                        item(key = "latest-relic-${latestRelic.day}") {
+                            ChorusRelicHero(relic = latestRelic)
+                        }
+                        if (olderRelics.isNotEmpty()) {
+                            item(key = "older-chorus-relics-label") {
+                                Text(
+                                    text = "Earlier relics",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            items(olderRelics, key = { relic -> "relic-${relic.day}" }) { relic ->
+                                ChorusRelicRow(relic = relic)
+                            }
                         }
                     }
                     if (history.isNotEmpty()) {
@@ -2352,6 +2384,48 @@ private fun HistoryRow(
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun ChorusRelicHero(relic: ChorusRelic) {
+    val relicPulse = remember(relic.day, relic.afterglowSeed) {
+        relic.toPulseSeal()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(panelShape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.62f))
+            .border(
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)),
+                panelShape
+            )
+            .padding(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        PulseOrb(
+            pulse = relicPulse,
+            modifier = Modifier.size(132.dp),
+            showConstellation = true,
+            echoTraceCount = relic.globalPresenceCount.coerceIn(1, 12),
+            ritualState = OrbRitualState.Contemplative,
+            interactive = false
+        )
+        Text(
+            text = "You were part of today's Chorus.",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = formatDateKey(relic.day),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
     }
 }

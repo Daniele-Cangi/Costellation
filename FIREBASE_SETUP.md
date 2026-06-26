@@ -78,6 +78,7 @@ Quando il file esiste:
 dailyFields/{day}/cells/{cellId}/orbs/{orbId}
 dailyFields/{day}/cells/{cellId}/echoes/{echoId}
 dailyChoruses/{day}/presences/{presenceId}
+dailyChoruses/{day}/afterglow/relic
 ```
 
 Esempio:
@@ -123,18 +124,20 @@ Regole da mantenere:
   - turbulence;
   - coarse cell ID;
   - client seed procedurale.
-- Afterglow relic locale generata dagli aggregati live disponibili.
+- Afterglow relic generata dagli aggregati live disponibili.
+- Afterglow relic condivisa su `dailyChoruses/{day}/afterglow/relic`.
 
 ## Backend Da Fare Per Il Chorus
 
 Il Chorus ora ha una prima presenza live reale.
-La versione attuale scrive presenze anonime e ascolta gli ultimi heartbeat attivi.
-Gli aggregati sono calcolati lato client e guidano `ChorusEclipseField`.
+La versione attuale scrive presenze anonime, ascolta gli ultimi heartbeat attivi e salva una reliquia condivisa.
+Gli aggregati sono ancora calcolati lato client e guidano `ChorusEclipseField`.
 
 Struttura attuale:
 
 ```text
 dailyChoruses/{day}/presences/{presenceId}
+dailyChoruses/{day}/afterglow/relic
 ```
 
 Campi consigliati per `presences`:
@@ -162,6 +165,20 @@ turbulence
 afterglowSeed
 ```
 
+Campi attuali per `afterglow/relic`:
+
+```text
+day
+afterglowSeed
+globalPresenceCount
+localFieldDensity
+synchronizationLevel
+coherence
+turbulence
+sealedAtMillis
+sealedBy
+```
+
 Nota importante: questi valori non devono essere mostrati come numeri tecnici.
 Devono diventare comportamento della sfera.
 
@@ -170,7 +187,7 @@ Devono diventare comportamento della sfera.
 1. Raffinare heartbeat: solo finestre temporali realmente rilevanti.
 2. Aggiungere `minutes/{minuteKey}` se serve una separazione piu pulita del minuto centrale.
 3. Valutare Cloud Function per aggregati anonimi server-side.
-4. Spostare afterglow relic da solo-locale a reliquia condivisa/derivata dal backend.
+4. Rendere afterglow relic server-derived con Cloud Function o transazione piu robusta.
 5. Rifinire rendering della reliquia nell'Archive.
 6. Testare con due telefoni solo alla fine del ciclo.
 

@@ -59,7 +59,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Presenze live iniziali nel Chorus.
 - Heartbeat anonimo durante la partecipazione.
 - Aggregati client-side per conteggio, densita locale, coerenza e turbolenza.
-- Afterglow relic locale salvata dopo la partecipazione al Chorus.
+- Afterglow relic salvata localmente e condivisa su Firestore.
 
 ### Chorus
 
@@ -107,12 +107,12 @@ Obiettivo: l'utente deve percepire che non sta guardando un'animazione, ma un ev
 
 ### 2. Raffinare Afterglow Come Reliquia
 
-Alla fine del Chorus, il campo lascia gia una prima traccia locale salvata.
+Alla fine del Chorus, il campo lascia gia una prima traccia salvata e condivisa.
 Ora va resa piu forte, piu condivisa e piu riconoscibile.
 
 Da fare:
 
-- derivare una reliquia condivisa dal backend, non solo dal client;
+- derivare la reliquia da backend/server-side, non solo da proposta client;
 - migliorare `afterglowSeed` con presenza globale e coerenza reale;
 - rendere l'Archive piu reliquiario e meno lista;
 - distinguere ancora meglio sigillo personale e Chorus relic;

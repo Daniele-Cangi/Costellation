@@ -36,7 +36,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Nearby Field anonimo basato su celle approssimate, senza coordinate precise.
 - Firebase Anonymous Auth + Firestore per presenze live ed echo.
 - Chorus live backend iniziale con presenze anonime, heartbeat e aggregati visuali.
-- Afterglow relic locale salvata nell'Archive dopo la partecipazione al Chorus.
+- Afterglow relic salvata nell'Archive e condivisa su Firestore quando disponibile.
 - Echo anonimi tra orb vicini.
 - Memoria giornaliera del coro: presenze, echo inviati, echo ricevuti.
 - Orb reattivo al movimento del telefono tramite sensori.
@@ -149,7 +149,7 @@ Il prossimo lavoro importante e rendere il Chorus realmente live:
 
 - raffinare presenza globale nel minuto delle 20:00;
 - rendere piu robusti conteggio anonimo live, coerenza e sincronizzazione;
-- afterglow relic da raffinare e collegare a una reliquia condivisa backend;
+- afterglow relic condivisa da rendere piu robusta con aggregazione backend/server-side;
 - test con due telefoni alla fine del ciclo.
 
 La versione Apple/iOS e prevista piu avanti. La scelta tecnica confermata e Kotlin Multiplatform per il cuore condiviso + SwiftUI nativa per l'esperienza iPhone.

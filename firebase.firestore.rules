@@ -51,5 +51,22 @@ service cloud.firestore {
         && request.resource.data.joinedAtMillis is int
         && request.resource.data.lastSeenAtMillis is int;
     }
+
+    match /dailyChoruses/{day}/afterglow/{relicId} {
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && relicId == "relic"
+        && request.resource.data.day == day
+        && request.resource.data.afterglowSeed is int
+        && request.resource.data.globalPresenceCount is int
+        && request.resource.data.globalPresenceCount >= 0
+        && validUnit(request.resource.data.localFieldDensity)
+        && validUnit(request.resource.data.synchronizationLevel)
+        && validUnit(request.resource.data.coherence)
+        && validUnit(request.resource.data.turbulence)
+        && request.resource.data.sealedAtMillis is int
+        && request.resource.data.sealedBy is string;
+    }
   }
 }

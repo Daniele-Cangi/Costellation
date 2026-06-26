@@ -1,6 +1,7 @@
 package app.constellationpulse.backend
 
 import android.content.Context
+import app.constellationpulse.data.ChorusRelic
 import app.constellationpulse.data.PulseSeal
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -62,6 +63,30 @@ data class RemoteChorusState(
     val afterglowSeed: Int = 0,
     val activePresences: List<RemoteChorusPresence> = emptyList()
 )
+
+data class RemoteChorusRelic(
+    val day: String,
+    val afterglowSeed: Int,
+    val globalPresenceCount: Int,
+    val localFieldDensity: Float,
+    val synchronizationLevel: Float,
+    val coherence: Float,
+    val turbulence: Float,
+    val sealedAtMillis: Long
+) {
+    fun toChorusRelic(): ChorusRelic {
+        return ChorusRelic(
+            day = day,
+            createdAtMillis = sealedAtMillis,
+            afterglowSeed = afterglowSeed,
+            globalPresenceCount = globalPresenceCount,
+            localFieldDensity = localFieldDensity,
+            synchronizationLevel = synchronizationLevel,
+            coherence = coherence,
+            turbulence = turbulence
+        )
+    }
+}
 
 class FirebaseFieldService(private val context: Context) {
     private val isConfigured: Boolean
@@ -319,6 +344,77 @@ class FirebaseFieldService(private val context: Context) {
             }
     }
 
+    fun publishSharedChorusRelic(
+        relic: ChorusRelic,
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        if (!isConfigured) {
+            onComplete(false)
+            return
+        }
+
+        ensureAnonymousAuth { uid ->
+            if (uid == null) {
+                onComplete(false)
+                return@ensureAnonymousAuth
+            }
+
+            val data = mapOf(
+                "day" to relic.day,
+                "afterglowSeed" to relic.afterglowSeed,
+                "globalPresenceCount" to relic.globalPresenceCount.coerceAtLeast(0),
+                "localFieldDensity" to relic.localFieldDensity.coerceIn(0f, 1f),
+                "synchronizationLevel" to relic.synchronizationLevel.coerceIn(0f, 1f),
+                "coherence" to relic.coherence.coerceIn(0f, 1f),
+                "turbulence" to relic.turbulence.coerceIn(0f, 1f),
+                "sealedAtMillis" to System.currentTimeMillis(),
+                "sealedBy" to dailyHash("relic:$uid", relic.day)
+            )
+
+            chorusAfterglowDocument(relic.day)
+                .set(data, SetOptions.merge())
+                .addOnSuccessListener { onComplete(true) }
+                .addOnFailureListener { onComplete(false) }
+        }
+    }
+
+    fun listenSharedChorusRelic(
+        day: String,
+        onUpdate: (RemoteChorusRelic?) -> Unit,
+        onError: () -> Unit = {}
+    ): ListenerRegistration? {
+        if (!isConfigured) {
+            return null
+        }
+
+        return chorusAfterglowDocument(day)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError()
+                    return@addSnapshotListener
+                }
+
+                if (snapshot == null || !snapshot.exists()) {
+                    onUpdate(null)
+                    return@addSnapshotListener
+                }
+
+                onUpdate(
+                    RemoteChorusRelic(
+                        day = snapshot.getString("day") ?: day,
+                        afterglowSeed = snapshot.getLong("afterglowSeed")?.toInt()
+                            ?: dailyHash("afterglow", day).hashCode(),
+                        globalPresenceCount = snapshot.getLong("globalPresenceCount")?.toInt()?.coerceAtLeast(0) ?: 0,
+                        localFieldDensity = snapshot.getDouble("localFieldDensity")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
+                        synchronizationLevel = snapshot.getDouble("synchronizationLevel")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
+                        coherence = snapshot.getDouble("coherence")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
+                        turbulence = snapshot.getDouble("turbulence")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
+                        sealedAtMillis = snapshot.getLong("sealedAtMillis") ?: 0L
+                    )
+                )
+            }
+    }
+
     private fun ensureAnonymousAuth(onReady: (String?) -> Unit) {
         val auth = FirebaseAuth.getInstance()
         val currentUser = auth.currentUser
@@ -354,6 +450,13 @@ class FirebaseFieldService(private val context: Context) {
             .collection("dailyChoruses")
             .document(day)
             .collection("presences")
+
+    private fun chorusAfterglowDocument(day: String) =
+        FirebaseFirestore.getInstance()
+            .collection("dailyChoruses")
+            .document(day)
+            .collection("afterglow")
+            .document("relic")
 
     private fun buildChorusState(
         day: String,
