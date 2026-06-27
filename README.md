@@ -38,6 +38,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Chorus live backend iniziale con presenze anonime, heartbeat e aggregati visuali.
 - ChorusPhysics iniziale: medie emotive anonime + presenza live tradotte in fisica visuale.
 - Collective Seal Pressure: sigilli giornalieri anonimi che preparano il Chorus prima del minuto.
+- Densita Chorus progressiva: le presenze vengono rivelate lentamente e trattenute per non spezzare il rito.
 - Afterglow relic salvata nell'Archive e condivisa su Firestore quando disponibile.
 - Echo anonimi tra orb vicini.
 - Echo visuale come trasferimento di luce verso l'orb selezionato.
@@ -94,6 +95,7 @@ Il sistema traduce i dati reali in comportamento visuale:
 - sigilli gia compiuti -> pressione collettiva pre-Chorus;
 - stato emotivo medio -> materiale, colore, profondita;
 - quantita di presenze -> densita, strati, compattezza;
+- nuovi ingressi -> reveal progressivo, non apparizione istantanea;
 - sincronizzazione -> ritmo comune e pulizia delle linee;
 - vicinanza locale -> gravita laterale e deformazione;
 - movimento/stillness -> turbolenza o calma;
@@ -104,7 +106,7 @@ Fasi attuali:
 
 - **Pre-Chorus**: attesa, tensione, countdown rituale.
 - **Entry**: ingresso tramite pressione lunga sulla sfera.
-- **Convergence**: il campo inizia a popolarsi di presenze anonime.
+- **Convergence**: il campo si popola lentamente di presenze anonime.
 - **The Minute**: per 60 secondi l'interfaccia si riduce a sfera, campo e presenza.
 - **Afterglow**: la costellazione lascia una traccia.
 - **Sealed**: il Chorus del giorno e concluso.

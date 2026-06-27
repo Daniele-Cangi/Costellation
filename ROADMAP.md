@@ -84,6 +84,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Prima direzione `ChorusPhysics`: dati reali tradotti in materiale, densita, coerenza, gravita, turbolenza e collasso.
 - Collective Seal Pressure: indice globale anonimo dei sigilli giornalieri.
 - Presenze Chorus arricchite con segnali emotivi anonimi del sigillo.
+- Reveal progressivo della densita: le presenze entrano nel campo con fade e memoria breve.
 - Minuto centrale legato alle 20:00 locali.
 - Afterglow dopo il minuto.
 - Reliquia visuale nell'Archive.
@@ -110,6 +111,7 @@ Mappa concettuale:
 sealed_count      -> pressione pre-Chorus
 emotional_weather -> materiale
 presence_count    -> densita
+new_entries       -> reveal progressivo
 synchronization   -> coerenza
 local_density     -> gravita laterale
 motion_stillness  -> turbolenza/calma
@@ -136,6 +138,7 @@ data class ChorusPhysics(
 Ora il renderer Chorus usa:
 
 - pressione dei sigilli gia compiuti prima che le persone entrino nel minuto;
+- ingresso lento delle presenze, senza apparizioni istantanee;
 - materiale e profondita dal clima emotivo medio;
 - densita dal numero di presenze;
 - coerenza/sincronizzazione per pulire o sfasare il campo;
@@ -146,6 +149,7 @@ Ora il renderer Chorus usa:
 Da fare:
 
 - calibrare soglie e intensita di `Collective Seal Pressure`;
+- calibrare durata del reveal progressivo nel Chorus;
 - calibrare `ChorusPhysics` su telefono reale e poi con due telefoni;
 - limitare e rifinire heartbeat sulle finestre temporali giuste;
 - valutare struttura `minutes/{minuteKey}` per il minuto centrale;

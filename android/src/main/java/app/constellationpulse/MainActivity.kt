@@ -1115,6 +1115,40 @@ private fun ChorusEclipseField(
     } else {
         (fallbackPresenceCount * (0.84f + density * 0.30f)).roundToInt().coerceIn(6, 32)
     }
+    var heldPresenceCount by remember(stage) { mutableStateOf(minOf(4, presenceCount.coerceAtLeast(1))) }
+    LaunchedEffect(presenceCount, stage) {
+        if (presenceCount >= heldPresenceCount) {
+            heldPresenceCount = presenceCount
+        } else {
+            delay(
+                when (stage) {
+                    ChorusStage.Minute -> 9_000
+                    ChorusStage.Afterglow -> 14_000
+                    ChorusStage.Sealed -> 4_000
+                    else -> 11_000
+                }
+            )
+            heldPresenceCount = presenceCount
+        }
+    }
+    val revealedPresenceFloat by animateFloatAsState(
+        targetValue = heldPresenceCount.toFloat(),
+        animationSpec = tween(
+            durationMillis = when (stage) {
+                ChorusStage.PreChorus -> 8_500
+                ChorusStage.Entry -> 7_800
+                ChorusStage.Convergence -> 11_000
+                ChorusStage.Minute -> 6_800
+                ChorusStage.Afterglow -> 5_400
+                ChorusStage.Sealed -> 3_600
+            },
+            easing = FastOutSlowInEasing
+        ),
+        label = "chorus-presence-reveal"
+    )
+    val revealedPresenceCount = (revealedPresenceFloat + 0.999f)
+        .toInt()
+        .coerceIn(1, heldPresenceCount.coerceAtLeast(1))
     val orbState = when (stage) {
         ChorusStage.PreChorus -> OrbRitualState.NearChorus
         ChorusStage.Entry -> OrbRitualState.Listening
@@ -1166,9 +1200,17 @@ private fun ChorusEclipseField(
                 center = fieldCenter
             )
 
-            repeat(presenceCount) { index ->
+            repeat(revealedPresenceCount) { index ->
+                val revealAlpha = (revealedPresenceFloat - index).coerceIn(0f, 1f)
+                if (revealAlpha <= 0.01f) {
+                    return@repeat
+                }
                 val livePresenceSeed = activePresences.getOrNull(index % activePresences.size.coerceAtLeast(1))
-                val random = Random((livePresenceSeed?.clientSeed ?: seed) + index * 9137)
+                val sealedOrbSeed = sealState.sealedOrbs.getOrNull(index % sealState.sealedOrbs.size.coerceAtLeast(1))
+                val presenceSeed = livePresenceSeed?.clientSeed
+                    ?: sealedOrbSeed?.orbId?.hashCode()
+                    ?: seed
+                val random = Random(presenceSeed + index * 9137)
                 val direction = if (index % 2 == 0) 1f else -1f
                 val baseAngle = random.nextFloat() * 360f
                 val breathSpeed = (10.8f / targetPhysics.breathSeconds).coerceIn(0.62f, 1.86f)
@@ -1176,8 +1218,21 @@ private fun ChorusEclipseField(
                 val outerOrbit = 0.47f + random.nextFloat() * (0.12f - density * 0.04f).coerceAtLeast(0.05f)
                 val innerOrbit = 0.16f + random.nextFloat() * 0.11f - collapseTension * 0.025f
                 val orbit = (outerOrbit + (innerOrbit - outerOrbit) * stagePull).coerceIn(0.11f, 0.58f)
-                val presenceStillness = livePresenceSeed?.stillness ?: coherence
-                val presenceTurbulence = livePresenceSeed?.turbulence ?: turbulence
+                val presenceStillness = livePresenceSeed?.stillness
+                    ?: sealedOrbSeed?.let { (0.46f + it.focus / 100f * 0.34f).coerceIn(0f, 1f) }
+                    ?: coherence
+                val presenceTurbulence = livePresenceSeed?.turbulence
+                    ?: sealedOrbSeed?.let { (it.arousal / 100f * 0.34f + (1f - it.focus / 100f) * 0.18f).coerceIn(0f, 1f) }
+                    ?: turbulence
+                val presenceTone = when {
+                    sealedOrbSeed != null -> pulseHaloColor(sealedOrbSeed.toPulseSeal())
+                    livePresenceSeed != null -> blendColor(
+                        Color(0xFFBDFBE2),
+                        Color(0xFFFFD7A8),
+                        livePresenceSeed.valence / 100f * 0.52f + livePresenceSeed.social / 100f * 0.28f
+                    )
+                    else -> materialTone
+                }
                 val wobble = sin(time * 1.3f + index * 0.72f) *
                     min *
                     0.010f *
@@ -1187,11 +1242,17 @@ private fun ChorusEclipseField(
                     x = fieldCenter.x + cos(angle) * min * orbit + cos(angle + PI.toFloat() / 2f) * wobble + gravityOffset.x * (0.18f + index % 3 * 0.04f),
                     y = fieldCenter.y + sin(angle) * min * orbit + sin(angle + PI.toFloat() / 2f) * wobble + gravityOffset.y * (0.18f + index % 3 * 0.04f)
                 )
-                val alpha = 0.06f + coherence * 0.16f + livePresence * 0.05f + density * 0.06f + (index % 5) * 0.007f
+                val alpha = (
+                    0.06f +
+                        coherence * 0.16f +
+                        livePresence * 0.05f +
+                        density * 0.06f +
+                        (index % 5) * 0.007f
+                    ) * revealAlpha
 
                 drawLine(
                     color = if (index % 3 == 0) {
-                        materialTone.copy(alpha = alpha * 0.42f)
+                        presenceTone.copy(alpha = alpha * 0.42f)
                     } else {
                         deepTone.copy(alpha = alpha * 0.34f)
                     },
@@ -1204,7 +1265,7 @@ private fun ChorusEclipseField(
                     brush = Brush.radialGradient(
                         colors = listOf(
                             Color.White.copy(alpha = alpha),
-                            materialTone.copy(alpha = alpha * 0.56f),
+                            presenceTone.copy(alpha = alpha * 0.56f),
                             Color.Transparent
                         ),
                         center = point,
