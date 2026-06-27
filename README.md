@@ -36,6 +36,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Nearby Field anonimo basato su celle approssimate, senza coordinate precise.
 - Firebase Anonymous Auth + Firestore per presenze live ed echo.
 - Chorus live backend iniziale con presenze anonime, heartbeat e aggregati visuali.
+- ChorusPhysics iniziale: medie emotive anonime + presenza live tradotte in fisica visuale.
 - Afterglow relic salvata nell'Archive e condivisa su Firestore quando disponibile.
 - Echo anonimi tra orb vicini.
 - Echo visuale come trasferimento di luce verso l'orb selezionato.
@@ -85,6 +86,17 @@ Le interazioni attuali:
 ### Chorus
 
 Il Chorus e pensato come un'eclissi umana procedurale.
+Ogni giorno deve avere una fisica propria: non numeri diversi, ma materia diversa.
+
+Il sistema traduce i dati reali in comportamento visuale:
+
+- stato emotivo medio -> materiale, colore, profondita;
+- quantita di presenze -> densita, strati, compattezza;
+- sincronizzazione -> ritmo comune e pulizia delle linee;
+- vicinanza locale -> gravita laterale e deformazione;
+- movimento/stillness -> turbolenza o calma;
+- echo del giorno -> cicatrici luminose;
+- fase temporale -> compressione, apertura, collasso.
 
 Fasi attuali:
 
@@ -154,6 +166,8 @@ Regole di prodotto:
 
 Il prossimo lavoro importante e rendere il Chorus realmente live:
 
+- introdurre `ChorusPhysics` come traduzione stabile da dati reali a fisica visuale;
+- calibrare la prima fisica Chorus su telefono reale;
 - raffinare presenza globale nel minuto delle 20:00;
 - rendere piu robusti conteggio anonimo live, coerenza e sincronizzazione;
 - afterglow relic condivisa da rendere piu robusta con aggregazione backend/server-side;

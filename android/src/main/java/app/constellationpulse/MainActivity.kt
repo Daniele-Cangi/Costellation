@@ -237,6 +237,18 @@ private enum class ChorusStage {
     Sealed
 }
 
+private data class ChorusPhysics(
+    val materialWarmth: Float,
+    val depth: Float,
+    val density: Float,
+    val coherence: Float,
+    val turbulence: Float,
+    val gravityPull: Float,
+    val breathSeconds: Float,
+    val scarIntensity: Float,
+    val collapseTension: Float
+)
+
 private data class SignalSpec(
     val label: String,
     val value: Float,
@@ -811,7 +823,12 @@ private fun ChorusScreen(
                     isCentralMinute -> 0.16f
                     else -> 0.28f
                 },
-                clientSeed = clientSeed
+                clientSeed = clientSeed,
+                valence = todaySeal?.valence ?: 50,
+                arousal = todaySeal?.arousal ?: 50,
+                energy = todaySeal?.energy ?: 50,
+                focus = todaySeal?.focus ?: 50,
+                social = todaySeal?.social ?: 50
             )
             delay(4_000)
         }
@@ -957,11 +974,58 @@ private fun ChorusEclipseField(
     val seed = remember(pulse?.dateKey, pulse?.createdAtMillis, liveState.afterglowSeed) {
         pulseVisualSeed(pulse) xor PulseSeal.todayKey().hashCode() xor liveState.afterglowSeed
     }
+    val targetPhysics = remember(stage, pulse, liveState, entered, holding) {
+        buildChorusPhysics(
+            stage = stage,
+            pulse = pulse,
+            liveState = liveState,
+            entered = entered,
+            holding = holding
+        )
+    }
     val livePresence = (liveState.globalPresenceCount / 32f).coerceIn(0f, 1f)
-    val liveCoherence = liveState.coherence.coerceIn(0f, 1f)
-    val liveTurbulence = liveState.turbulence.coerceIn(0f, 1f)
-    val liveNearness = liveState.localFieldDensity.coerceIn(0f, 1f)
     val activePresences = liveState.activePresences
+    val materialWarmth by animateFloatAsState(
+        targetValue = targetPhysics.materialWarmth,
+        animationSpec = tween(2_200, easing = FastOutSlowInEasing),
+        label = "chorus-material-warmth"
+    )
+    val depth by animateFloatAsState(
+        targetValue = targetPhysics.depth,
+        animationSpec = tween(2_200, easing = FastOutSlowInEasing),
+        label = "chorus-depth"
+    )
+    val density by animateFloatAsState(
+        targetValue = targetPhysics.density,
+        animationSpec = tween(1_900, easing = FastOutSlowInEasing),
+        label = "chorus-density"
+    )
+    val turbulence by animateFloatAsState(
+        targetValue = targetPhysics.turbulence,
+        animationSpec = tween(1_700, easing = FastOutSlowInEasing),
+        label = "chorus-turbulence"
+    )
+    val gravityPull by animateFloatAsState(
+        targetValue = targetPhysics.gravityPull,
+        animationSpec = tween(2_100, easing = FastOutSlowInEasing),
+        label = "chorus-gravity"
+    )
+    val scarIntensity by animateFloatAsState(
+        targetValue = targetPhysics.scarIntensity,
+        animationSpec = tween(2_400, easing = FastOutSlowInEasing),
+        label = "chorus-scar"
+    )
+    val collapseTension by animateFloatAsState(
+        targetValue = targetPhysics.collapseTension,
+        animationSpec = tween(2_000, easing = FastOutSlowInEasing),
+        label = "chorus-collapse"
+    )
+    val materialTone = blendColor(
+        blendColor(secondary, Color(0xFFFFD7A8), materialWarmth),
+        Color(0xFFBDFBE2),
+        liveState.synchronizationLevel.coerceIn(0f, 1f) * 0.22f
+    )
+    val deepTone = blendColor(primary, Color(0xFF6E78A8), depth * 0.55f)
     val baseStagePull = when (stage) {
         ChorusStage.PreChorus -> 0.10f
         ChorusStage.Entry -> if (holding) 0.38f else 0.20f
@@ -979,12 +1043,17 @@ private fun ChorusEclipseField(
         ChorusStage.Sealed -> 0.34f
     }
     val stagePull by animateFloatAsState(
-        targetValue = (baseStagePull + liveNearness * 0.12f + livePresence * 0.08f).coerceIn(0f, 0.92f),
+        targetValue = (
+            baseStagePull +
+                gravityPull * 0.12f +
+                density * 0.08f -
+                collapseTension * 0.05f
+            ).coerceIn(0f, 0.94f),
         animationSpec = tween(1_400, easing = FastOutSlowInEasing),
         label = "chorus-stage-pull"
     )
     val coherence by animateFloatAsState(
-        targetValue = (baseCoherence * 0.62f + liveCoherence * 0.38f).coerceIn(0.10f, 0.96f),
+        targetValue = (baseCoherence * 0.38f + targetPhysics.coherence * 0.62f).coerceIn(0.10f, 0.98f),
         animationSpec = tween(1_800, easing = FastOutSlowInEasing),
         label = "chorus-coherence"
     )
@@ -997,9 +1066,9 @@ private fun ChorusEclipseField(
         ChorusStage.Sealed -> 9
     }
     val presenceCount = if (liveState.globalPresenceCount > 0) {
-        (liveState.globalPresenceCount + fallbackPresenceCount / 2).coerceIn(8, 42)
+        (liveState.globalPresenceCount + (fallbackPresenceCount * (0.38f + density * 0.35f)).roundToInt()).coerceIn(8, 56)
     } else {
-        fallbackPresenceCount
+        (fallbackPresenceCount * (0.84f + density * 0.30f)).roundToInt().coerceIn(6, 32)
     }
     val orbState = when (stage) {
         ChorusStage.PreChorus -> OrbRitualState.NearChorus
@@ -1018,19 +1087,38 @@ private fun ChorusEclipseField(
             val min = size.minDimension
             val centerPoint = center
             val stroke = min * 0.004f
+            val gravityAngle = (seed % 360 + time * (2.8f + coherence * 3.2f)) * PI.toFloat() / 180f
+            val gravityOffset = Offset(
+                x = cos(gravityAngle) * min * 0.050f * gravityPull,
+                y = sin(gravityAngle) * min * 0.040f * gravityPull
+            )
+            val fieldCenter = centerPoint + gravityOffset * 0.32f
+
+            repeat((2 + (density * 4f).roundToInt()).coerceIn(2, 6)) { index ->
+                val layer = index / 5f
+                val radius = min * (0.27f + layer * 0.085f + stagePull * 0.13f + collapseTension * 0.035f)
+                drawCircle(
+                    color = blendColor(materialTone, deepTone, layer * 0.45f).copy(
+                        alpha = (0.040f + density * 0.030f + coherence * 0.018f) * (1f - layer * 0.10f)
+                    ),
+                    radius = radius,
+                    center = fieldCenter + gravityOffset * (0.10f + layer * 0.18f),
+                    style = Stroke(width = stroke * (0.34f + density * 0.22f), cap = StrokeCap.Round)
+                )
+            }
 
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        primary.copy(alpha = 0.10f + coherence * 0.10f),
-                        secondary.copy(alpha = 0.05f + stagePull * 0.07f),
+                        materialTone.copy(alpha = 0.10f + coherence * 0.08f + density * 0.05f),
+                        deepTone.copy(alpha = 0.05f + stagePull * 0.06f + depth * 0.04f),
                         Color.Transparent
                     ),
-                    center = centerPoint,
-                    radius = min * (0.36f + stagePull * 0.36f)
+                    center = fieldCenter,
+                    radius = min * (0.34f + stagePull * 0.34f + density * 0.10f)
                 ),
-                radius = min * (0.36f + stagePull * 0.36f),
-                center = centerPoint
+                radius = min * (0.34f + stagePull * 0.34f + density * 0.10f),
+                center = fieldCenter
             )
 
             repeat(presenceCount) { index ->
@@ -1038,56 +1126,59 @@ private fun ChorusEclipseField(
                 val random = Random((livePresenceSeed?.clientSeed ?: seed) + index * 9137)
                 val direction = if (index % 2 == 0) 1f else -1f
                 val baseAngle = random.nextFloat() * 360f
-                val angle = (baseAngle + time * (4.5f + coherence * 8f) * direction) * PI.toFloat() / 180f
-                val outerOrbit = 0.46f + random.nextFloat() * 0.10f
-                val innerOrbit = 0.18f + random.nextFloat() * 0.12f
-                val orbit = outerOrbit + (innerOrbit - outerOrbit) * stagePull
+                val breathSpeed = (10.8f / targetPhysics.breathSeconds).coerceIn(0.62f, 1.86f)
+                val angle = (baseAngle + time * (2.2f + coherence * 5.8f + density * 2.2f) * direction * breathSpeed) * PI.toFloat() / 180f
+                val outerOrbit = 0.47f + random.nextFloat() * (0.12f - density * 0.04f).coerceAtLeast(0.05f)
+                val innerOrbit = 0.16f + random.nextFloat() * 0.11f - collapseTension * 0.025f
+                val orbit = (outerOrbit + (innerOrbit - outerOrbit) * stagePull).coerceIn(0.11f, 0.58f)
                 val presenceStillness = livePresenceSeed?.stillness ?: coherence
-                val presenceTurbulence = livePresenceSeed?.turbulence ?: liveTurbulence
+                val presenceTurbulence = livePresenceSeed?.turbulence ?: turbulence
                 val wobble = sin(time * 1.3f + index * 0.72f) *
                     min *
                     0.010f *
-                    (1f - coherence + presenceTurbulence * 0.8f) *
+                    (1f - coherence + presenceTurbulence * 0.9f) *
                     (1.12f - presenceStillness * 0.34f)
                 val point = Offset(
-                    x = centerPoint.x + cos(angle) * min * orbit + cos(angle + PI.toFloat() / 2f) * wobble,
-                    y = centerPoint.y + sin(angle) * min * orbit + sin(angle + PI.toFloat() / 2f) * wobble
+                    x = fieldCenter.x + cos(angle) * min * orbit + cos(angle + PI.toFloat() / 2f) * wobble + gravityOffset.x * (0.18f + index % 3 * 0.04f),
+                    y = fieldCenter.y + sin(angle) * min * orbit + sin(angle + PI.toFloat() / 2f) * wobble + gravityOffset.y * (0.18f + index % 3 * 0.04f)
                 )
-                val alpha = 0.08f + coherence * 0.18f + livePresence * 0.06f + (index % 5) * 0.008f
+                val alpha = 0.06f + coherence * 0.16f + livePresence * 0.05f + density * 0.06f + (index % 5) * 0.007f
 
                 drawLine(
                     color = if (index % 3 == 0) {
-                        primary.copy(alpha = alpha * 0.42f)
+                        materialTone.copy(alpha = alpha * 0.42f)
                     } else {
-                        secondary.copy(alpha = alpha * 0.34f)
+                        deepTone.copy(alpha = alpha * 0.34f)
                     },
                     start = point,
-                    end = centerPoint,
-                    strokeWidth = stroke * (0.28f + coherence * 0.30f),
+                    end = fieldCenter,
+                    strokeWidth = stroke * (0.22f + coherence * 0.28f + density * 0.14f),
                     cap = StrokeCap.Round
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
                             Color.White.copy(alpha = alpha),
-                            primary.copy(alpha = alpha * 0.56f),
+                            materialTone.copy(alpha = alpha * 0.56f),
                             Color.Transparent
                         ),
                         center = point,
-                        radius = min * (0.018f + coherence * 0.012f)
+                        radius = min * (0.014f + coherence * 0.010f + density * 0.010f)
                     ),
-                    radius = min * (0.018f + coherence * 0.012f),
+                    radius = min * (0.014f + coherence * 0.010f + density * 0.010f),
                     center = point
                 )
             }
 
             if (stage == ChorusStage.Afterglow || stage == ChorusStage.Sealed) {
-                repeat(5) { index ->
-                    val radius = min * (0.13f + index * 0.044f)
+                repeat(5 + (scarIntensity * 4f).roundToInt()) { index ->
+                    val radius = min * (0.11f + index * 0.036f + collapseTension * 0.030f)
                     drawCircle(
-                        color = Color.White.copy(alpha = (0.10f - index * 0.012f).coerceAtLeast(0.025f)),
+                        color = blendColor(Color.White, materialTone, 0.35f).copy(
+                            alpha = ((0.12f + scarIntensity * 0.08f) - index * 0.011f).coerceAtLeast(0.018f)
+                        ),
                         radius = radius,
-                        center = centerPoint,
+                        center = fieldCenter,
                         style = Stroke(width = stroke * 0.46f, cap = StrokeCap.Round)
                     )
                 }
@@ -1098,8 +1189,10 @@ private fun ChorusEclipseField(
             pulse = pulse,
             modifier = Modifier.size(252.dp),
             showConstellation = true,
-            echoTraceCount = if (entered) 6 else 0,
+            echoTraceCount = if (entered) (3 + scarIntensity * 9f).roundToInt() else 0,
             ritualState = orbState,
+            fieldInfluence = (density * 0.26f + gravityPull * 0.20f + collapseTension * 0.16f).coerceIn(0f, 0.72f),
+            fieldTone = materialTone,
             onPressChanged = onHoldingChange,
             onLongPressGesture = onEnter
         )
@@ -4225,6 +4318,94 @@ private fun homeFieldLine(orbs: List<RemoteFieldOrb>, isSealed: Boolean): String
         pulse.valence <= 34 -> "A low light is passing through the field."
         else -> "The nearby field is no longer empty."
     }
+}
+
+private fun buildChorusPhysics(
+    stage: ChorusStage,
+    pulse: PulseSeal?,
+    liveState: RemoteChorusState,
+    entered: Boolean,
+    holding: Boolean
+): ChorusPhysics {
+    val hasLiveField = liveState.globalPresenceCount > 0
+    val valence = ((if (hasLiveField) liveState.valence else pulse?.valence) ?: 50) / 100f
+    val arousal = ((if (hasLiveField) liveState.arousal else pulse?.arousal) ?: 50) / 100f
+    val energy = ((if (hasLiveField) liveState.energy else pulse?.energy) ?: 50) / 100f
+    val focus = ((if (hasLiveField) liveState.focus else pulse?.focus) ?: 50) / 100f
+    val social = ((if (hasLiveField) liveState.social else pulse?.social) ?: 50) / 100f
+    val presence = (liveState.globalPresenceCount / 42f).coerceIn(0f, 1f)
+    val localDensity = liveState.localFieldDensity.coerceIn(0f, 1f)
+    val liveCoherence = liveState.coherence.coerceIn(0f, 1f)
+    val liveTurbulence = liveState.turbulence.coerceIn(0f, 1f)
+    val stageDensity = when (stage) {
+        ChorusStage.PreChorus -> 0.18f
+        ChorusStage.Entry -> if (entered) 0.34f else 0.24f
+        ChorusStage.Convergence -> 0.54f
+        ChorusStage.Minute -> 0.68f
+        ChorusStage.Afterglow -> 0.46f
+        ChorusStage.Sealed -> 0.24f
+    }
+    val stageCoherence = when (stage) {
+        ChorusStage.PreChorus -> 0.20f
+        ChorusStage.Entry -> if (entered) 0.42f else 0.28f
+        ChorusStage.Convergence -> 0.58f
+        ChorusStage.Minute -> if (holding) 0.90f else 0.72f
+        ChorusStage.Afterglow -> 0.68f
+        ChorusStage.Sealed -> 0.36f
+    }
+    val collapse = when (stage) {
+        ChorusStage.PreChorus -> 0.10f
+        ChorusStage.Entry -> if (holding) 0.28f else 0.16f
+        ChorusStage.Convergence -> 0.38f
+        ChorusStage.Minute -> 0.18f
+        ChorusStage.Afterglow -> 0.78f
+        ChorusStage.Sealed -> 0.58f
+    }
+    val coherence = (
+        stageCoherence * 0.42f +
+            liveCoherence * 0.34f +
+            focus * 0.12f +
+            if (holding) 0.12f else 0f
+        ).coerceIn(0.10f, 0.98f)
+    val turbulence = (
+        liveTurbulence * 0.48f +
+            arousal * 0.20f +
+            (1f - coherence) * 0.24f -
+            if (holding) 0.10f else 0f
+        ).coerceIn(0.03f, 0.86f)
+    val density = (
+        stageDensity +
+            presence * 0.34f +
+            localDensity * 0.16f +
+            energy * 0.10f -
+            collapse * 0.08f
+        ).coerceIn(0.12f, 1f)
+    val materialWarmth = (valence * 0.46f + social * 0.30f + energy * 0.14f).coerceIn(0f, 1f)
+    val depth = ((1f - valence) * 0.36f + focus * 0.26f + presence * 0.18f + collapse * 0.18f).coerceIn(0f, 1f)
+    val gravityPull = (localDensity * 0.56f + presence * 0.18f + social * 0.10f + collapse * 0.14f).coerceIn(0f, 1f)
+    val breathSeconds = (8.9f - coherence * 2.2f + turbulence * 1.3f - density * 0.42f).coerceIn(5.8f, 10.8f)
+    val scarIntensity = (
+        when (stage) {
+            ChorusStage.Afterglow -> 0.48f
+            ChorusStage.Sealed -> 0.34f
+            ChorusStage.Minute -> 0.22f
+            else -> 0.10f
+        } +
+            presence * 0.20f +
+            coherence * 0.14f
+        ).coerceIn(0f, 1f)
+
+    return ChorusPhysics(
+        materialWarmth = materialWarmth,
+        depth = depth,
+        density = density,
+        coherence = coherence,
+        turbulence = turbulence,
+        gravityPull = gravityPull,
+        breathSeconds = breathSeconds,
+        scarIntensity = scarIntensity,
+        collapseTension = collapse
+    )
 }
 
 private fun nearbySignature(pulse: PulseSeal): String {

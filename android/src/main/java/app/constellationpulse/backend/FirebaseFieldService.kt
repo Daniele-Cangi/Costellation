@@ -46,6 +46,11 @@ data class RemoteChorusPresence(
     val presenceId: String,
     val day: String,
     val coarseCellId: String,
+    val valence: Int,
+    val arousal: Int,
+    val energy: Int,
+    val focus: Int,
+    val social: Int,
     val touchStability: Float,
     val stillness: Float,
     val turbulence: Float,
@@ -60,6 +65,11 @@ data class RemoteChorusState(
     val synchronizationLevel: Float = 0f,
     val coherence: Float = 0f,
     val turbulence: Float = 0f,
+    val valence: Int = 50,
+    val arousal: Int = 50,
+    val energy: Int = 50,
+    val focus: Int = 50,
+    val social: Int = 50,
     val afterglowSeed: Int = 0,
     val activePresences: List<RemoteChorusPresence> = emptyList()
 )
@@ -262,6 +272,11 @@ class FirebaseFieldService(private val context: Context) {
         stillness: Float,
         turbulence: Float,
         clientSeed: Int,
+        valence: Int = 50,
+        arousal: Int = 50,
+        energy: Int = 50,
+        focus: Int = 50,
+        social: Int = 50,
         onComplete: (Boolean) -> Unit = {}
     ) {
         if (!isConfigured) {
@@ -281,6 +296,11 @@ class FirebaseFieldService(private val context: Context) {
                 "presenceId" to presenceId,
                 "day" to day,
                 "coarseCellId" to coarseCellId,
+                "valence" to valence.coerceIn(0, 100),
+                "arousal" to arousal.coerceIn(0, 100),
+                "energy" to energy.coerceIn(0, 100),
+                "focus" to focus.coerceIn(0, 100),
+                "social" to social.coerceIn(0, 100),
                 "touchStability" to touchStability.coerceIn(0f, 1f),
                 "stillness" to stillness.coerceIn(0f, 1f),
                 "turbulence" to turbulence.coerceIn(0f, 1f),
@@ -331,6 +351,11 @@ class FirebaseFieldService(private val context: Context) {
                             presenceId = presenceId,
                             day = document.getString("day") ?: day,
                             coarseCellId = document.getString("coarseCellId") ?: "",
+                            valence = document.getLong("valence")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            arousal = document.getLong("arousal")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            energy = document.getLong("energy")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            focus = document.getLong("focus")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            social = document.getLong("social")?.toInt()?.coerceIn(0, 100) ?: 50,
                             touchStability = document.getDouble("touchStability")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
                             stillness = document.getDouble("stillness")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
                             turbulence = document.getDouble("turbulence")?.toFloat()?.coerceIn(0f, 1f) ?: 0f,
@@ -472,6 +497,11 @@ class FirebaseFieldService(private val context: Context) {
         val touch = presences.map { it.touchStability }.average().toFloat().coerceIn(0f, 1f)
         val stillness = presences.map { it.stillness }.average().toFloat().coerceIn(0f, 1f)
         val turbulence = presences.map { it.turbulence }.average().toFloat().coerceIn(0f, 1f)
+        val valence = presences.map { it.valence }.average().toInt().coerceIn(0, 100)
+        val arousal = presences.map { it.arousal }.average().toInt().coerceIn(0, 100)
+        val energy = presences.map { it.energy }.average().toInt().coerceIn(0, 100)
+        val focus = presences.map { it.focus }.average().toInt().coerceIn(0, 100)
+        val social = presences.map { it.social }.average().toInt().coerceIn(0, 100)
         val density = (localCount / 8f).coerceIn(0f, 1f)
         val sync = (touch * 0.42f + stillness * 0.40f + (1f - turbulence) * 0.18f).coerceIn(0f, 1f)
         val scaleBoost = (count / 24f).coerceIn(0f, 1f)
@@ -487,6 +517,11 @@ class FirebaseFieldService(private val context: Context) {
             synchronizationLevel = sync,
             coherence = coherence,
             turbulence = turbulence,
+            valence = valence,
+            arousal = arousal,
+            energy = energy,
+            focus = focus,
+            social = social,
             afterglowSeed = afterglowSeed,
             activePresences = presences
         )

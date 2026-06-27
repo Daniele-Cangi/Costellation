@@ -81,6 +81,8 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Campo procedurale attorno alla sfera.
 - Presenze anonime come luci, non avatar.
 - Campo guidato da presenze live quando Firebase e disponibile.
+- Prima direzione `ChorusPhysics`: dati reali tradotti in materiale, densita, coerenza, gravita, turbolenza e collasso.
+- Presenze Chorus arricchite con segnali emotivi anonimi del sigillo.
 - Minuto centrale legato alle 20:00 locali.
 - Afterglow dopo il minuto.
 - Reliquia visuale nell'Archive.
@@ -99,8 +101,48 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 Il Chorus ha ora una prima presenza live reale.
 Il prossimo passo e renderla piu precisa, piu robusta e piu memorabile.
 
+Direzione chiave: ogni Chorus deve avere una fisica propria, derivata dal mondo reale ma mostrata senza numeri.
+
+Mappa concettuale:
+
+```text
+emotional_weather -> materiale
+presence_count    -> densita
+synchronization   -> coerenza
+local_density     -> gravita laterale
+motion_stillness  -> turbolenza/calma
+echo_memory       -> cicatrici
+time_phase        -> drammaturgia
+```
+
+Primo layer tecnico implementato:
+
+```kotlin
+data class ChorusPhysics(
+    val materialWarmth: Float,
+    val depth: Float,
+    val density: Float,
+    val coherence: Float,
+    val turbulence: Float,
+    val gravityPull: Float,
+    val breathSeconds: Float,
+    val scarIntensity: Float,
+    val collapseTension: Float
+)
+```
+
+Ora il renderer Chorus usa:
+
+- materiale e profondita dal clima emotivo medio;
+- densita dal numero di presenze;
+- coerenza/sincronizzazione per pulire o sfasare il campo;
+- gravita laterale dalla densita locale;
+- turbolenza da movimento/stillness;
+- collasso e cicatrici nell'Afterglow.
+
 Da fare:
 
+- calibrare `ChorusPhysics` su telefono reale e poi con due telefoni;
 - limitare e rifinire heartbeat sulle finestre temporali giuste;
 - valutare struttura `minutes/{minuteKey}` per il minuto centrale;
 - migliorare calcolo `coherence` e `synchronizationLevel`;
