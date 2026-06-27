@@ -93,6 +93,7 @@ import androidx.core.content.ContextCompat
 import app.constellationpulse.backend.FirebaseFieldService
 import app.constellationpulse.backend.RemoteChorusState
 import app.constellationpulse.backend.RemoteFieldOrb
+import app.constellationpulse.backend.RemoteSealState
 import app.constellationpulse.data.ChorusMemory
 import app.constellationpulse.data.ChorusMemoryRepository
 import app.constellationpulse.data.ChorusRelic
@@ -328,10 +329,14 @@ private data class EchoTransfer(
 
 private data class HomeFieldState(
     val presences: List<RemoteFieldOrb> = emptyList(),
+    val sealState: RemoteSealState = RemoteSealState(),
     val localOrbId: String? = null
 ) {
     val visiblePresences: List<RemoteFieldOrb>
         get() = presences.filterNot { it.orbId == localOrbId }
+
+    val visibleSealedOrbs: List<RemoteFieldOrb>
+        get() = sealState.sealedOrbs.filterNot { it.orbId == localOrbId }
 }
 
 private val panelShape = RoundedCornerShape(8.dp)
@@ -465,19 +470,23 @@ private fun HomeScreen(
     }
     var fieldState by remember { mutableStateOf(HomeFieldState()) }
     val visibleFieldPresences = fieldState.visiblePresences
-    val homeFieldPulse = remember(visibleFieldPresences) {
-        buildHomeFieldPulse(todayKey, visibleFieldPresences)
+    val visibleSealedOrbs = fieldState.visibleSealedOrbs
+    val homeFieldOrbs = remember(visibleFieldPresences, visibleSealedOrbs) {
+        mergeRemoteOrbs(visibleFieldPresences + visibleSealedOrbs)
     }
-    val homeFieldIntensity = remember(visibleFieldPresences) {
-        homeFieldIntensity(visibleFieldPresences)
+    val homeFieldPulse = remember(homeFieldOrbs) {
+        buildHomeFieldPulse(todayKey, homeFieldOrbs)
     }
-    val homeFieldLine = remember(visibleFieldPresences, todaySeal?.dateKey) {
-        homeFieldLine(visibleFieldPresences, todaySeal != null)
+    val homeFieldIntensity = remember(homeFieldOrbs) {
+        homeFieldIntensity(homeFieldOrbs)
+    }
+    val homeFieldLine = remember(homeFieldOrbs, todaySeal?.dateKey) {
+        homeFieldLine(homeFieldOrbs, todaySeal != null)
     }
     var countdown by remember { mutableStateOf(formatCountdown(millisUntilChorus())) }
 
     DisposableEffect(hasHomeLocationPermission, homeCellId, todaySeal?.dateKey, todaySeal?.createdAtMillis) {
-        if (!hasHomeLocationPermission || !firebaseFieldService.isAvailable()) {
+        if (!firebaseFieldService.isAvailable()) {
             fieldState = HomeFieldState()
             onDispose { }
         } else {
@@ -491,20 +500,35 @@ private fun HomeScreen(
                 }
             }
 
-            homeListeningCellIds.forEach { listenedCellId ->
-                firebaseFieldService.listenNearbyField(
-                    day = todayKey,
-                    cellId = listenedCellId,
-                    onUpdate = { orbs ->
-                        latestByCell = latestByCell + (listenedCellId to orbs)
-                        fieldState = fieldState.copy(
-                            presences = mergeRemoteOrbs(latestByCell.values.flatten())
-                        )
-                    },
-                    onError = {
-                        fieldState = fieldState.copy(presences = emptyList())
-                    }
-                )?.let { registrations += it }
+            firebaseFieldService.listenDailySealState(
+                day = todayKey,
+                localCellId = homeCellId,
+                onUpdate = { sealState ->
+                    fieldState = fieldState.copy(sealState = sealState)
+                },
+                onError = {
+                    fieldState = fieldState.copy(sealState = RemoteSealState())
+                }
+            )?.let { registrations += it }
+
+            if (hasHomeLocationPermission) {
+                homeListeningCellIds.forEach { listenedCellId ->
+                    firebaseFieldService.listenNearbyField(
+                        day = todayKey,
+                        cellId = listenedCellId,
+                        onUpdate = { orbs ->
+                            latestByCell = latestByCell + (listenedCellId to orbs)
+                            fieldState = fieldState.copy(
+                                presences = mergeRemoteOrbs(latestByCell.values.flatten())
+                            )
+                        },
+                        onError = {
+                            fieldState = fieldState.copy(presences = emptyList())
+                        }
+                    )?.let { registrations += it }
+                }
+            } else {
+                fieldState = fieldState.copy(presences = emptyList())
             }
 
             onDispose {
@@ -559,7 +583,7 @@ private fun HomeScreen(
                 ritualState = homeOrbRitualState(todaySeal, chorusMemory),
                 fieldPulse = homeFieldPulse,
                 fieldIntensity = homeFieldIntensity,
-                fieldSeed = visibleFieldPresences.fold(todayKey.hashCode()) { acc, orb -> acc xor orb.orbId.hashCode() },
+                fieldSeed = homeFieldOrbs.fold(todayKey.hashCode()) { acc, orb -> acc xor orb.orbId.hashCode() },
                 onLongPressGesture = onChorusClick
             )
 
@@ -737,6 +761,7 @@ private fun ChorusScreen(
     var hasEntered by rememberSaveable { mutableStateOf(false) }
     var isHoldingField by remember { mutableStateOf(false) }
     var chorusLiveState by remember { mutableStateOf(RemoteChorusState()) }
+    var sealPressureState by remember { mutableStateOf(RemoteSealState()) }
     var savedRelicDay by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
@@ -755,7 +780,9 @@ private fun ChorusScreen(
     }
 
     DisposableEffect(firebaseFieldService, day, localCellId) {
-        val registration = firebaseFieldService.listenChorusState(
+        val registrations = mutableListOf<ListenerRegistration>()
+
+        firebaseFieldService.listenChorusState(
             day = day,
             localCellId = localCellId,
             onUpdate = { liveState ->
@@ -764,10 +791,21 @@ private fun ChorusScreen(
             onError = {
                 chorusLiveState = RemoteChorusState()
             }
-        )
+        )?.let { registrations += it }
+
+        firebaseFieldService.listenDailySealState(
+            day = day,
+            localCellId = localCellId,
+            onUpdate = { sealState ->
+                sealPressureState = sealState
+            },
+            onError = {
+                sealPressureState = RemoteSealState()
+            }
+        )?.let { registrations += it }
 
         onDispose {
-            registration?.remove()
+            registrations.forEach { it.remove() }
         }
     }
 
@@ -850,6 +888,8 @@ private fun ChorusScreen(
         ChorusStage.Entry -> "Hold the sphere to cross the threshold."
         ChorusStage.Convergence -> if (chorusLiveState.globalPresenceCount > 1) {
             "Others are entering the field."
+        } else if (sealPressureState.globalSealCount > 1) {
+            "The sealed field is gathering pressure."
         } else {
             "Your signal is waiting for the field."
         }
@@ -926,6 +966,7 @@ private fun ChorusScreen(
                     entered = hasEntered,
                     holding = isHoldingField,
                     liveState = chorusLiveState,
+                    sealState = sealPressureState,
                     onHoldingChange = { isHoldingField = it },
                     onEnter = {
                         hasEntered = true
@@ -964,6 +1005,7 @@ private fun ChorusEclipseField(
     entered: Boolean,
     holding: Boolean,
     liveState: RemoteChorusState,
+    sealState: RemoteSealState,
     onHoldingChange: (Boolean) -> Unit,
     onEnter: () -> Unit,
     modifier: Modifier = Modifier
@@ -971,19 +1013,20 @@ private fun ChorusEclipseField(
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val time = rememberOrbTimeSeconds(active = true)
-    val seed = remember(pulse?.dateKey, pulse?.createdAtMillis, liveState.afterglowSeed) {
-        pulseVisualSeed(pulse) xor PulseSeal.todayKey().hashCode() xor liveState.afterglowSeed
+    val seed = remember(pulse?.dateKey, pulse?.createdAtMillis, liveState.afterglowSeed, sealState.afterglowSeed) {
+        pulseVisualSeed(pulse) xor PulseSeal.todayKey().hashCode() xor liveState.afterglowSeed xor sealState.afterglowSeed
     }
-    val targetPhysics = remember(stage, pulse, liveState, entered, holding) {
+    val targetPhysics = remember(stage, pulse, liveState, sealState, entered, holding) {
         buildChorusPhysics(
             stage = stage,
             pulse = pulse,
             liveState = liveState,
+            sealState = sealState,
             entered = entered,
             holding = holding
         )
     }
-    val livePresence = (liveState.globalPresenceCount / 32f).coerceIn(0f, 1f)
+    val livePresence = ((liveState.globalPresenceCount + sealState.globalSealCount * 0.35f) / 32f).coerceIn(0f, 1f)
     val activePresences = liveState.activePresences
     val materialWarmth by animateFloatAsState(
         targetValue = targetPhysics.materialWarmth,
@@ -1067,6 +1110,8 @@ private fun ChorusEclipseField(
     }
     val presenceCount = if (liveState.globalPresenceCount > 0) {
         (liveState.globalPresenceCount + (fallbackPresenceCount * (0.38f + density * 0.35f)).roundToInt()).coerceIn(8, 56)
+    } else if (sealState.globalSealCount > 0) {
+        (sealState.globalSealCount + (fallbackPresenceCount * (0.42f + density * 0.30f)).roundToInt()).coerceIn(7, 46)
     } else {
         (fallbackPresenceCount * (0.84f + density * 0.30f)).roundToInt().coerceIn(6, 32)
     }
@@ -4324,19 +4369,45 @@ private fun buildChorusPhysics(
     stage: ChorusStage,
     pulse: PulseSeal?,
     liveState: RemoteChorusState,
+    sealState: RemoteSealState,
     entered: Boolean,
     holding: Boolean
 ): ChorusPhysics {
     val hasLiveField = liveState.globalPresenceCount > 0
-    val valence = ((if (hasLiveField) liveState.valence else pulse?.valence) ?: 50) / 100f
-    val arousal = ((if (hasLiveField) liveState.arousal else pulse?.arousal) ?: 50) / 100f
-    val energy = ((if (hasLiveField) liveState.energy else pulse?.energy) ?: 50) / 100f
-    val focus = ((if (hasLiveField) liveState.focus else pulse?.focus) ?: 50) / 100f
-    val social = ((if (hasLiveField) liveState.social else pulse?.social) ?: 50) / 100f
-    val presence = (liveState.globalPresenceCount / 42f).coerceIn(0f, 1f)
-    val localDensity = liveState.localFieldDensity.coerceIn(0f, 1f)
+    val hasSealPressure = sealState.globalSealCount > 0
+    val valence = when {
+        hasLiveField -> liveState.valence
+        hasSealPressure -> sealState.valence
+        else -> pulse?.valence ?: 50
+    } / 100f
+    val arousal = when {
+        hasLiveField -> liveState.arousal
+        hasSealPressure -> sealState.arousal
+        else -> pulse?.arousal ?: 50
+    } / 100f
+    val energy = when {
+        hasLiveField -> liveState.energy
+        hasSealPressure -> sealState.energy
+        else -> pulse?.energy ?: 50
+    } / 100f
+    val focus = when {
+        hasLiveField -> liveState.focus
+        hasSealPressure -> sealState.focus
+        else -> pulse?.focus ?: 50
+    } / 100f
+    val social = when {
+        hasLiveField -> liveState.social
+        hasSealPressure -> sealState.social
+        else -> pulse?.social ?: 50
+    } / 100f
+    val presence = ((liveState.globalPresenceCount + sealState.globalSealCount * 0.42f) / 42f).coerceIn(0f, 1f)
+    val localDensity = maxOf(liveState.localFieldDensity, sealState.localSealDensity * 0.72f).coerceIn(0f, 1f)
     val liveCoherence = liveState.coherence.coerceIn(0f, 1f)
     val liveTurbulence = liveState.turbulence.coerceIn(0f, 1f)
+    val sealedCoherence = ((focus * 0.44f + social * 0.24f + (1f - arousal) * 0.12f) + presence * 0.16f)
+        .coerceIn(0f, 1f)
+    val sealedTurbulence = (arousal * 0.34f + (1f - focus) * 0.22f + (1f - social) * 0.08f)
+        .coerceIn(0f, 1f)
     val stageDensity = when (stage) {
         ChorusStage.PreChorus -> 0.18f
         ChorusStage.Entry -> if (entered) 0.34f else 0.24f
@@ -4363,12 +4434,12 @@ private fun buildChorusPhysics(
     }
     val coherence = (
         stageCoherence * 0.42f +
-            liveCoherence * 0.34f +
+            (if (hasLiveField) liveCoherence else sealedCoherence) * 0.34f +
             focus * 0.12f +
             if (holding) 0.12f else 0f
         ).coerceIn(0.10f, 0.98f)
     val turbulence = (
-        liveTurbulence * 0.48f +
+        (if (hasLiveField) liveTurbulence else sealedTurbulence) * 0.48f +
             arousal * 0.20f +
             (1f - coherence) * 0.24f -
             if (holding) 0.10f else 0f

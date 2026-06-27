@@ -37,6 +37,7 @@ La repo contiene un'app Android funzionante con esperienza visuale avanzata:
 - Firebase Anonymous Auth + Firestore per presenze live ed echo.
 - Chorus live backend iniziale con presenze anonime, heartbeat e aggregati visuali.
 - ChorusPhysics iniziale: medie emotive anonime + presenza live tradotte in fisica visuale.
+- Collective Seal Pressure: sigilli giornalieri anonimi che preparano il Chorus prima del minuto.
 - Afterglow relic salvata nell'Archive e condivisa su Firestore quando disponibile.
 - Echo anonimi tra orb vicini.
 - Echo visuale come trasferimento di luce verso l'orb selezionato.
@@ -90,6 +91,7 @@ Ogni giorno deve avere una fisica propria: non numeri diversi, ma materia divers
 
 Il sistema traduce i dati reali in comportamento visuale:
 
+- sigilli gia compiuti -> pressione collettiva pre-Chorus;
 - stato emotivo medio -> materiale, colore, profondita;
 - quantita di presenze -> densita, strati, compattezza;
 - sincronizzazione -> ritmo comune e pulizia delle linee;
@@ -126,6 +128,7 @@ Percorsi principali:
 - `android/src/main/java/app/constellationpulse/MainActivity.kt`
 - `android/src/main/java/app/constellationpulse/backend/FirebaseFieldService.kt`
 - `android/src/main/java/app/constellationpulse/data/ChorusMemoryRepository.kt`
+- `firebase.firestore.rules`
 - `FIREBASE_SETUP.md`
 - `ROADMAP.md`
 
@@ -167,6 +170,7 @@ Regole di prodotto:
 Il prossimo lavoro importante e rendere il Chorus realmente live:
 
 - introdurre `ChorusPhysics` come traduzione stabile da dati reali a fisica visuale;
+- calibrare `Collective Seal Pressure` nella Home e nel Pre-Chorus;
 - calibrare la prima fisica Chorus su telefono reale;
 - raffinare presenza globale nel minuto delle 20:00;
 - rendere piu robusti conteggio anonimo live, coerenza e sincronizzazione;

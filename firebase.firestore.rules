@@ -37,6 +37,21 @@ service cloud.firestore {
         && request.resource.data.createdAtMillis is int;
     }
 
+    match /dailySeals/{day}/orbs/{orbId} {
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && request.resource.data.orbId == orbId
+        && request.resource.data.day == day
+        && request.resource.data.cellId is string
+        && validSignal(request.resource.data.valence)
+        && validSignal(request.resource.data.arousal)
+        && validSignal(request.resource.data.energy)
+        && validSignal(request.resource.data.focus)
+        && validSignal(request.resource.data.social)
+        && request.resource.data.createdAtMillis is int;
+    }
+
     match /dailyChoruses/{day}/presences/{presenceId} {
       allow read: if signedIn();
 

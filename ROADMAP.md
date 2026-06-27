@@ -82,6 +82,7 @@ La direzione e chiara: **Constellation Pulse deve diventare un oggetto rituale, 
 - Presenze anonime come luci, non avatar.
 - Campo guidato da presenze live quando Firebase e disponibile.
 - Prima direzione `ChorusPhysics`: dati reali tradotti in materiale, densita, coerenza, gravita, turbolenza e collasso.
+- Collective Seal Pressure: indice globale anonimo dei sigilli giornalieri.
 - Presenze Chorus arricchite con segnali emotivi anonimi del sigillo.
 - Minuto centrale legato alle 20:00 locali.
 - Afterglow dopo il minuto.
@@ -106,6 +107,7 @@ Direzione chiave: ogni Chorus deve avere una fisica propria, derivata dal mondo 
 Mappa concettuale:
 
 ```text
+sealed_count      -> pressione pre-Chorus
 emotional_weather -> materiale
 presence_count    -> densita
 synchronization   -> coerenza
@@ -133,6 +135,7 @@ data class ChorusPhysics(
 
 Ora il renderer Chorus usa:
 
+- pressione dei sigilli gia compiuti prima che le persone entrino nel minuto;
 - materiale e profondita dal clima emotivo medio;
 - densita dal numero di presenze;
 - coerenza/sincronizzazione per pulire o sfasare il campo;
@@ -142,6 +145,7 @@ Ora il renderer Chorus usa:
 
 Da fare:
 
+- calibrare soglie e intensita di `Collective Seal Pressure`;
 - calibrare `ChorusPhysics` su telefono reale e poi con due telefoni;
 - limitare e rifinire heartbeat sulle finestre temporali giuste;
 - valutare struttura `minutes/{minuteKey}` per il minuto centrale;

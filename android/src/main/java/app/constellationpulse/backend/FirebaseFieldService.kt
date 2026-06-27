@@ -42,6 +42,18 @@ data class RemoteFieldEcho(
     val createdAtMillis: Long
 )
 
+data class RemoteSealState(
+    val globalSealCount: Int = 0,
+    val localSealDensity: Float = 0f,
+    val valence: Int = 50,
+    val arousal: Int = 50,
+    val energy: Int = 50,
+    val focus: Int = 50,
+    val social: Int = 50,
+    val afterglowSeed: Int = 0,
+    val sealedOrbs: List<RemoteFieldOrb> = emptyList()
+)
+
 data class RemoteChorusPresence(
     val presenceId: String,
     val day: String,
@@ -124,6 +136,7 @@ class FirebaseFieldService(private val context: Context) {
             val data = mapOf(
                 "orbId" to orbId,
                 "day" to pulse.dateKey,
+                "cellId" to cellId,
                 "valence" to pulse.valence,
                 "arousal" to pulse.arousal,
                 "energy" to pulse.energy,
@@ -135,7 +148,11 @@ class FirebaseFieldService(private val context: Context) {
             orbsCollection(pulse.dateKey, cellId)
                 .document(orbId)
                 .set(data, SetOptions.merge())
-                .addOnSuccessListener { onComplete(true) }
+                .addOnSuccessListener {
+                    dailySealOrbDocument(pulse.dateKey, orbId)
+                        .set(data, SetOptions.merge())
+                        .addOnCompleteListener { onComplete(true) }
+                }
                 .addOnFailureListener { onComplete(false) }
         }
     }
@@ -230,6 +247,47 @@ class FirebaseFieldService(private val context: Context) {
                     .sortedByDescending { it.createdAtMillis }
 
                 onUpdate(echoes)
+            }
+    }
+
+    fun listenDailySealState(
+        day: String,
+        localCellId: String,
+        onUpdate: (RemoteSealState) -> Unit,
+        onError: () -> Unit = {}
+    ): ListenerRegistration? {
+        if (!isConfigured) {
+            return null
+        }
+
+        return dailySealOrbsCollection(day)
+            .orderBy("createdAtMillis", Query.Direction.DESCENDING)
+            .limit(240)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError()
+                    return@addSnapshotListener
+                }
+
+                val orbs = snapshot
+                    ?.documents
+                    .orEmpty()
+                    .mapNotNull { document ->
+                        val orbId = document.getString("orbId") ?: document.id
+                        RemoteFieldOrb(
+                            orbId = orbId,
+                            day = document.getString("day") ?: day,
+                            cellId = document.getString("cellId") ?: "",
+                            valence = document.getLong("valence")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            arousal = document.getLong("arousal")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            energy = document.getLong("energy")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            focus = document.getLong("focus")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            social = document.getLong("social")?.toInt()?.coerceIn(0, 100) ?: 50,
+                            createdAtMillis = document.getLong("createdAtMillis") ?: 0L
+                        )
+                    }
+
+                onUpdate(buildSealState(day, localCellId, orbs))
             }
     }
 
@@ -470,6 +528,15 @@ class FirebaseFieldService(private val context: Context) {
             .document(cellId)
             .collection("echoes")
 
+    private fun dailySealOrbsCollection(day: String) =
+        FirebaseFirestore.getInstance()
+            .collection("dailySeals")
+            .document(day)
+            .collection("orbs")
+
+    private fun dailySealOrbDocument(day: String, orbId: String) =
+        dailySealOrbsCollection(day).document(orbId)
+
     private fun chorusPresencesCollection(day: String) =
         FirebaseFirestore.getInstance()
             .collection("dailyChoruses")
@@ -524,6 +591,34 @@ class FirebaseFieldService(private val context: Context) {
             social = social,
             afterglowSeed = afterglowSeed,
             activePresences = presences
+        )
+    }
+
+    private fun buildSealState(
+        day: String,
+        localCellId: String,
+        orbs: List<RemoteFieldOrb>
+    ): RemoteSealState {
+        if (orbs.isEmpty()) {
+            return RemoteSealState(afterglowSeed = dailyHash("sealed", day).hashCode())
+        }
+
+        val localCount = orbs.count { it.cellId == localCellId && localCellId.isNotBlank() }
+        val afterglowSeed = orbs
+            .fold(dailyHash("sealed", day).hashCode()) { acc, orb ->
+                acc xor orb.orbId.hashCode() xor orb.createdAtMillis.toInt()
+            }
+
+        return RemoteSealState(
+            globalSealCount = orbs.size,
+            localSealDensity = (localCount / 8f).coerceIn(0f, 1f),
+            valence = orbs.map { it.valence }.average().toInt().coerceIn(0, 100),
+            arousal = orbs.map { it.arousal }.average().toInt().coerceIn(0, 100),
+            energy = orbs.map { it.energy }.average().toInt().coerceIn(0, 100),
+            focus = orbs.map { it.focus }.average().toInt().coerceIn(0, 100),
+            social = orbs.map { it.social }.average().toInt().coerceIn(0, 100),
+            afterglowSeed = afterglowSeed,
+            sealedOrbs = orbs
         )
     }
 
